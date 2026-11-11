@@ -1,0 +1,4 @@
+[
+  {"id": "00000000-0000-4000-8000-000000000001", "fullName": "Test Guest One", "email": "guest.one@bistro-booking.example", "phone": "+33100000001", "dietaryNotes": "no nuts"},
+  {"id": "00000000-0000-4000-8000-000000000002", "fullName": "Test Guest Two", "email": "guest.two@bistro-booking.example", "phone": null, "dietaryNotes": null}
+]

@@ -1,0 +1,52 @@
+# .github/workflows/compliance.yml
+# Check the manifest on pull requests (no secret), send it to the compliance repo on pushes to the default branch.
+# Resolve each <full-sha> with: gh api repos/<owner>/<repo>/commits/<tag> --jq .sha (the commit SHA, also for annotated tags).
+# Same as the "Service repo" example of the compliance-action README. Replace every placeholder.
+name: Compliance
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@<full-sha> # v5
+        with:
+          persist-credentials: false
+      # TODO: pin to the commit of the v1 tag once it exists (until then, the SHA of main)
+      - uses: C2-POLY/compliance-action@<full-sha> # v1
+        with:
+          mode: check
+
+  send:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: compliance # restricted to the default branch (Settings > Environments)
+    steps:
+      - uses: actions/checkout@<full-sha> # v5
+        with:
+          fetch-depth: 0 # the lag needs the full history
+          persist-credentials: false
+
+      - id: token
+        uses: actions/create-github-app-token@<full-sha> # v2
+        with:
+          app-id: ${{ vars.COMPLIANCE_APP_ID }}
+          private-key: ${{ secrets.COMPLIANCE_APP_PRIVATE_KEY }}
+          owner: <compliance-owner>
+          repositories: <compliance-repo>
+          permission-contents: write
+
+      # TODO: pin to the commit of the v1 tag once it exists (until then, the SHA of main)
+      - uses: C2-POLY/compliance-action@<full-sha> # v1
+        with:
+          mode: send
+          compliance-repo: <compliance-owner>/<compliance-repo>
+          token: ${{ steps.token.outputs.token }}

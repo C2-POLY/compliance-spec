@@ -11,6 +11,7 @@ An open format to describe, repo by repo, what a software service does with pers
 - **`compliance.yaml`**: the list of repos and external tools that make up the information system.
 - **JSON Schemas** for each of these files.
 - **A compliance step for `/topic`-style skills**: it asks targeted GDPR / AI Act questions at spec time, and only when a change triggers them.
+- **A skill to start from existing code**: it scans a repo, writes its first manifest, asks only what the code cannot tell and opens a pull request.
 - **A base template** for the records of processing activities (GDPR Art. 30).
 
 ## Layout
@@ -19,7 +20,7 @@ An open format to describe, repo by repo, what a software service does with pers
 | --- | --- |
 | `spec/` | The format, in prose |
 | `schema/` | JSON Schemas, versioned by folder |
-| `skills/` | The compliance step for `/topic`: [`skills/compliance-step`](skills/compliance-step) (triggers, questions, scenarios) |
+| `skills/` | The compliance step for `/topic`: [`skills/compliance-step`](skills/compliance-step) (triggers, questions, scenarios); and the one-time first manifest of an existing repo: [`skills/compliance-init`](skills/compliance-init) (scan guide, findings, pull request, example) |
 | `templates/` | Document templates: [`templates/register`](templates/register) (records of processing, GDPR Art. 30(1): items, mapping, provenance, template) |
 | `scripts/` | `validate.mjs` (check a file against its schema), `missing-services.mjs`, `check-triggers.mjs` (the compliance step's field paths exist in the schema) |
 | `tests/` | Fixtures (valid and invalid) and the test runner |

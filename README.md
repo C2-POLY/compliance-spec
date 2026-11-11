@@ -21,7 +21,20 @@ An open format to describe, repo by repo, what a software service does with pers
 | `schema/` | JSON Schemas, versioned by folder |
 | `skills/` | The compliance step for `/topic` |
 | `templates/` | Document templates (records of processing) |
+| `scripts/` | `validate.mjs` (check a file against its schema), `missing-services.mjs` |
+| `tests/` | Fixtures (valid and invalid) and the test runner |
 | `examples/` | A complete example for a fictional restaurant booking app, « Bistro Booking » |
+
+## Validate
+
+Needs Node 24 or later.
+
+```bash
+npm ci && npm test                      # schemas, fixtures, examples, scripts
+node scripts/validate.mjs <file>        # check one file; the schema is picked from the file name
+node scripts/validate.mjs --schema manifest <file>
+node scripts/missing-services.mjs <compliance-repo-dir>
+```
 
 ## Related
 

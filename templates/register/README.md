@@ -164,7 +164,10 @@ Context:
 | `processings` | root | list of `{id, name, rows}`, sorted by `id` |
 | `rows` | in a processing | the flat list of `{item, value, source}` of the 11 items in order |
 
-The one special case: with no anchor, the generator writes `anchors: {}` in place of the `anchors:` block.
+Two special cases:
+
+- With no anchor, the generator writes `anchors: {}` in place of the `anchors:` block.
+- An empty `{{name}}` between two spaces leaves a single space, so a continuation row renders `| | value | source |`, not `|  | value | source |`.
 
 ## Limits of v0.1
 

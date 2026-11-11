@@ -19,7 +19,7 @@ A person can be identified or contacted from something the service did not hold 
 | a1. What is the new data, and what kind? | `personal_data[].fields[].category` (and `name`) |
 | a2. Whose data is it? | `personal_data[].subjects` |
 | a3. Why is it collected? | `personal_data[].purpose` |
-| a4. On what legal basis? | `personal_data[].legal_basis` (`unknown` is allowed: leave it out and add a `TODO`) |
+| a4. On what legal basis? | `personal_data[].legal_basis` (`unknown` is allowed: leave it out and add a `TODO`). Not asked when `service.controller` is `user-of-the-app`: the value is `not-applicable` |
 
 The field is added to the `personal_data` entry of the same purpose, or to a new entry when the purpose is new. If the issue or the diff names the store that holds it, add its id to that store's `data` list; if no store is named, write a `TODO` in the section.
 

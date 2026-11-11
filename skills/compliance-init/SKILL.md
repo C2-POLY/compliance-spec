@@ -38,7 +38,7 @@ Files in this folder: [`scan.md`](scan.md) (what to look for, per section of the
    - Ids are lowercase with hyphens, unique in their list. Every `data` entry names an existing `personal_data` id.
    - A finding with confidence `found` or `inferred` becomes an item with `source: {kind: code, ref: "<path>"}`. `ref` is the path of the file relative to the repo root; several files are comma-separated (`"src/db.ts, migrations/001.sql"`). The format defines no line anchor and no glob in `ref`: the line stays in `findings.md`. Use the file that best shows the item, and no file under a test, fixture or mock folder.
    - Use the categories and the `processors` / `outbound_flows` split of `scan.md` (sections 2 and 4).
-   - **Gaps.** `legal_basis` is left out; `dpa: unknown`; an outbound flow `to.country: unknown`; `retention.duration: unknown` only when the code shows nothing about deletion or expiry.
+   - **Gaps.** `legal_basis` is left out (until question 1 is answered: see step 5 for `user-of-the-app`); `dpa: unknown`; an outbound flow `to.country: unknown`; `retention.duration: unknown` only when the code shows nothing about deletion or expiry.
    - **Retention from the code.** When the code shows the event that deletes the data (sign-out deletes the token, the user removes an entry, a TTL), write it: the TTL as an ISO duration, or `duration: none` (kept until the event) with the event as `trigger`, `source: code`. `session` is only for data held in memory. A file the app writes and never deletes itself (a file in the user's repository, an export) is `duration: none` with the trigger "until the person deletes it": an undo right after the write is not a retention rule. See `scan.md`, section 3.
    - **Processor with a missing required value.** The schema does not allow `unknown` for a processor's `country` or `transfer_outside_eu`: until they are answered, write the recipient as an `outbound_flows` entry only (`account: organisation`, `country: unknown`) and list it under "still unknown".
    - **A flow that sends no personal data** (only the IP address and technical headers, as any HTTP call does) is an `outbound_flows` entry with `data: []` and a `purpose` that says so ("update check; sends only the IP address and the technical headers"). The schema allows it. Do not drop such a flow.
@@ -52,7 +52,7 @@ Files in this folder: [`scan.md`](scan.md) (what to look for, per section of the
    | --- | --- | --- | --- |
    | 1 | Controller (blocking): `organisation`, `user-of-the-app` or `shared` | always | the service |
    | 2 | Who is answering (a role is enough; recorded as the source of the answers) | always | |
-   | 3 | Legal basis (a4) | any `personal_data` | every `personal_data` id |
+   | 3 | Legal basis (a4), only if the controller turns out to be `organisation` or `shared` | any `personal_data` | every `personal_data` id |
    | 4 | Retention, start event and region (c1, c3, c4) | any `storage` whose retention the code does not show | every store |
    | 5 | Country of each recipient, and the safeguard if outside the EU/EEA (b2) | any processor or flow | every processor and every outbound flow |
    | 6 | Data processing agreement signed (b3) | any processor | every processor |
@@ -62,7 +62,7 @@ Files in this folder: [`scan.md`](scan.md) (what to look for, per section of the
    Format of the message (items listed under each question, to fill in):
 
    ```
-   3. Legal basis (consent, contract, legal obligation, legitimate interests, other, or not known yet) for:
+   3. Only if the controller is the organisation or shared: legal basis (consent, contract, legal obligation, legitimate interests, other, or not known yet) for:
       - guest-contact:
       - booking-details:
    4. How long is the data kept, what event starts the clock, and in which region is it hosted, for:
@@ -73,6 +73,7 @@ Files in this folder: [`scan.md`](scan.md) (what to look for, per section of the
 
 5. **Record the answers.** Update the manifest:
    - Write `.compliance/manifest.yaml` now that question 1 is answered. `service.controller` comes from the answer, and the `service` item carries `source: {kind: declared, ref: "<README or package file>; controller answered by <who answered> during compliance-init"}`.
+   - **When question 1 is answered `user-of-the-app`**, the organisation is not the controller of what the user processes locally (`spec/manifest.md`, `service`): every `personal_data` entry gets `legal_basis: not-applicable # follows from question 1`, and any answer to question 3 is ignored. Do not list legal bases as gaps, in the pull request or in the handoff.
    - Values that complete an item found in the code (legal basis, retention, region, country, DPA, safeguard, review, marking) are written into that item. Its `source` stays `code` (it says where the item comes from), and each value gets a trailing YAML comment `# declared: question <n>, <who answered>`.
    - An item that exists **only** because of an answer (a store the person named, a recipient the code does not show) gets `source: {kind: declared, ref: "answered by <who answered> during compliance-init"}`.
    - A value the code does not settle and that you set to the conservative value, or an `account` the person confirmed, is listed in "To confirm" in the pull request.

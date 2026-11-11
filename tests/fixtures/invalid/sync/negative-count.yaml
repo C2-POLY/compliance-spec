@@ -1,0 +1,6 @@
+# expect: /lag/count minimum
+spec_version: "0.1"
+repo: bistro-api
+sha: 7c1e4f9a2b6d8035e1a4c7f90b2d6e8a1c3f5b79
+received_at: "2026-03-12T09:41:07Z"
+lag: {anchor: null, count: -1, commits: []}

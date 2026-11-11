@@ -1,0 +1,6 @@
+# expect: /declared_tools/0/path pattern
+spec_version: "0.1"
+organisation: {name: Bistro Booking Group}
+repos: []
+declared_tools:
+  - {id: crm, name: ClientDesk CRM, path: crm.yaml}

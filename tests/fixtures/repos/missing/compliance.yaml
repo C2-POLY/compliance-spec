@@ -1,0 +1,7 @@
+spec_version: "0.1"
+organisation:
+  name: Bistro Booking Group
+repos:
+  - {name: bistro-api, url: "https://github.com/bistro-org/bistro-api", owner: platform team, expected_to_send: true}
+  - {name: bistro-web, url: "https://github.com/bistro-org/bistro-web", owner: web team, expected_to_send: true}
+  - {name: bistro-analytics, url: "https://github.com/bistro-org/bistro-analytics", owner: data team, expected_to_send: false}

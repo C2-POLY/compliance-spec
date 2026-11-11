@@ -1,0 +1,12 @@
+# expect: /services/0/recipients/0 pattern
+spec_version: "0.1"
+id: marketing-emails
+name: Marketing emails
+purpose: Send the newsletter.
+controller: {name: Bistro Booking Group, contact: privacy@bistro-booking.example}
+data_subjects: [subscribers]
+legal_basis: consent
+services:
+  - repo: bistro-api
+    recipients: ["Mail Relay"]
+source: {kind: declared, ref: marketing team}

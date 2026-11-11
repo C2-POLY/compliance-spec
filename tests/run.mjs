@@ -176,3 +176,67 @@ for (const name of ['01-guest-phone', '02-sms-provider']) {
     assert.deepEqual(expected.service, baseManifest.service);
   });
 }
+
+// Register template (templates/register)
+const exampleDir = join(root, 'examples', 'bistro-booking');
+const registerFile = join(exampleDir, 'documents', 'register.md');
+const registerText = existsSync(registerFile) ? readFileSync(registerFile, 'utf8') : '';
+const registerHead = registerText.match(/^---\n([\s\S]*?)\n---\n/);
+const registerRows = registerText
+  .split('\n')
+  .filter((l) => l.startsWith('|') && !/^\| (Item|---)/.test(l))
+  .map((l) => l.split(/(?<!\\)\|/).slice(1, -1).map((c) => c.trim()));
+const provenance = /^(code: \S+@[0-9a-f]{7}:\S.*|spec: https?:\/\/\S+|declared: \S.*|—)$/;
+const placeholders = ['To complete', 'None identified in the sources'];
+const itemLabels = [
+  '(a) Controller', '(a) Joint controller', '(a) Representative', '(a) Data protection officer', '(b) Purposes',
+  '(c) Data subjects', '(c) Personal data', '(d) Recipients', '(e) Transfers', '(f) Erasure time limits', '(g) Security measures',
+];
+
+test('register: template and golden output exist, template blocks are balanced', () => {
+  const tmpl = readFileSync(join(root, 'templates', 'register', 'register.md.tmpl'), 'utf8');
+  assert.ok(existsSync(join(root, 'templates', 'register', 'README.md')));
+  assert.ok(registerHead, 'documents/register.md must start with a front matter');
+  assert.equal(tmpl.match(/\{\{#each /g).length, tmpl.match(/\{\{\/each\}\}/g).length);
+});
+
+test('register: front matter anchors equal anchors.yaml and the sync shas', () => {
+  const head = parse(registerHead[1]);
+  const anchors = parse(readFileSync(join(exampleDir, 'anchors.yaml'), 'utf8'));
+  assert.equal(head.spec_version, '0.1');
+  assert.equal(head.generated_at, anchors.generated_at);
+  assert.deepEqual(head.anchors, Object.fromEntries(Object.entries(anchors.repos).map(([repo, { sha }]) => [repo, sha])));
+  for (const [repo, sha] of Object.entries(head.anchors)) {
+    const sync = parse(readFileSync(join(exampleDir, 'services', repo, 'sync.yaml'), 'utf8'));
+    assert.equal(sha, sync.sha, `${repo}: anchor must be the sha of sync.yaml`);
+  }
+});
+
+test('register: every row has three cells and a valid source; placeholders have no source', () => {
+  assert.ok(registerRows.length > 0);
+  for (const cells of registerRows) {
+    assert.equal(cells.length, 3, cells.join(' | '));
+    const [, value, source] = cells;
+    assert.match(source, provenance, cells.join(' | '));
+    assert.equal(placeholders.includes(value), source === '—', cells.join(' | '));
+    const code = source.match(/^code: (\S+?)@([0-9a-f]{7}):/);
+    if (code) {
+      const sync = parse(readFileSync(join(exampleDir, 'services', code[1], 'sync.yaml'), 'utf8'));
+      assert.equal(code[2], sync.sha.slice(0, 7), source);
+    }
+  }
+});
+
+test('register: one section per processing, sorted by id, each with the 11 items in order', () => {
+  const dirs = readdirSync(join(exampleDir, 'processings')).sort();
+  const expected = dirs.map((id) => {
+    const p = parse(readFileSync(join(exampleDir, 'processings', id, 'processing.yaml'), 'utf8'));
+    return `## ${p.name} (${p.id})`;
+  });
+  assert.deepEqual(registerText.match(/^## .+$/gm), expected);
+  for (const section of registerText.split(/^## /m).slice(1)) {
+    const labels = section.split('\n').filter((l) => l.startsWith('|') && !/^\| (Item|---)/.test(l))
+      .map((l) => l.split(/(?<!\\)\|/)[1].trim()).filter(Boolean);
+    assert.deepEqual(labels, itemLabels);
+  }
+});

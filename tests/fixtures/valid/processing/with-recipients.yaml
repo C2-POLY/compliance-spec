@@ -1,0 +1,14 @@
+spec_version: "0.1"
+id: marketing-emails
+name: Marketing emails
+purpose: Send the newsletter.
+controller: {name: Bistro Booking Group, contact: privacy@bistro-booking.example}
+data_subjects: [subscribers]
+legal_basis: consent
+services:
+  - repo: bistro-api
+    data: [guest-contact]
+    recipients: [mailrelay, send-email]
+  - tool: crm
+    recipients: []
+source: {kind: declared, ref: marketing team}

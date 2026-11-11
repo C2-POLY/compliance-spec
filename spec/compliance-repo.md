@@ -46,7 +46,7 @@ One file per processing activity (a purpose, a set of data subjects, a legal bas
 | `dpo` | `{name, contact}` | no | The data protection officer, when there is one. |
 | `data_subjects` | list of strings | yes | Categories of persons. |
 | `legal_basis` | enum | yes | Same values as in the manifest: `consent`, `contract`, `legal-obligation`, `vital-interests`, `public-task`, `legitimate-interests`, `not-applicable`. |
-| `services` | list | yes | The repos and tools involved. Each entry has `repo` (a name from `compliance.yaml`) **or** `tool` (a `declared_tools` id), and optionally `data`: the `personal_data` ids of that service's manifest that belong to this processing. No `data` means all of them. |
+| `services` | list | yes | The repos and tools involved. Each entry has `repo` (a name from `compliance.yaml`) **or** `tool` (a `declared_tools` id), and optionally `data`: the `personal_data` ids of that service's manifest that belong to this processing (no `data` means all of them), and `recipients`: the `processors` and `outbound_flows` ids of that manifest that belong to this processing (no `recipients` means those that share an id with the entry's `data` scope; `recipients: []` means none). |
 | `security_measures` | list | no | `{measure, source}`: technical and organisational measures (Art. 30(1)(g)). |
 | `recipients` | list | no | `{name, source}`: recipients (Art. 30(1)(d)) the manifests do not already show. |
 | `retention` | object | no | `{duration, trigger, source}`: overrides the retention of the manifests for this processing. `duration` has the manifest format. |
@@ -89,9 +89,9 @@ spec_version: "0.1"
 generated_at: "2026-03-11T08:00:00Z"
 repos:
   bistro-api:
-    sha: 4b8d2f6a0c1e9375a2d4f6b8c0e2a4d6f8b1c3e5
+    sha: "4b8d2f6a0c1e9375a2d4f6b8c0e2a4d6f8b1c3e5"
   bistro-web:
-    sha: 9d3f6b1a4c7e0258b1d4f7a0c3e6b9d2f5a8c1e4
+    sha: "9d3f6b1a4c7e0258b1d4f7a0c3e6b9d2f5a8c1e4"
 ```
 
 | Field | Type | Required | Meaning |

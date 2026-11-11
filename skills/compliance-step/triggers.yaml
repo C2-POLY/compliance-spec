@@ -1,0 +1,84 @@
+# Machine-readable mapping of the compliance step: trigger id -> questions -> manifest field path.
+# Explained in triggers.md. Every path is checked against the manifest schema by scripts/check-triggers.mjs.
+# `field` is the main path the answer fills; `also` lists other paths the same answer settles.
+triggers:
+  - id: a
+    name: New personal data field
+    questions:
+      - id: a1
+        text: What is the new data, and is it identity, contact, financial, location, usage, professional, health, special or credential data?
+        field: personal_data[].fields[].category
+        also:
+          - personal_data[].fields[].name
+      - id: a2
+        text: Whose data is it (guests, staff, other)?
+        field: personal_data[].subjects
+      - id: a3
+        text: Why is it collected, in one sentence?
+        field: personal_data[].purpose
+      - id: a4
+        text: On what legal basis (consent, contract, legal obligation, legitimate interests, other, or not known yet)?
+        field: personal_data[].legal_basis
+  - id: b
+    name: New external service or recipient
+    questions:
+      - id: b1
+        text: What is the provider called, and what does it do for us?
+        field: processors[].name
+        also:
+          - processors[].service
+          - outbound_flows[].to.name
+      - id: b2
+        text: In which country does it process the data, and if that is outside the EU/EEA, which safeguard covers the transfer?
+        field: processors[].country
+        also:
+          - processors[].transfer_outside_eu
+          - processors[].safeguard
+          - outbound_flows[].to.country
+      - id: b3
+        text: Is a data processing agreement signed with it (yes, no, unknown)?
+        field: processors[].dpa
+      - id: b4
+        text: Which personal data is sent to it?
+        field: processors[].data
+        also:
+          - outbound_flows[].data
+  - id: c
+    name: New storage or retention change
+    questions:
+      - id: c1
+        text: Where is the data stored (kind of store, product, region)?
+        field: storage[].location
+        also:
+          - storage[].kind
+      - id: c2
+        text: Which personal data does it hold?
+        field: storage[].data
+      - id: c3
+        text: How long is the data kept (a duration, until the user removes it, or unknown)?
+        field: storage[].retention.duration
+      - id: c4
+        text: What event starts the clock or ends the retention?
+        field: storage[].retention.trigger
+  - id: d
+    name: Automated decision or AI feature
+    questions:
+      - id: d1
+        text: What does the system decide or generate, and who is affected?
+        field: automated_decisions[].description
+        also:
+          - ai_features[].description
+      - id: d2
+        text: Does the decision have a legal effect or a similarly significant effect on the person?
+        field: automated_decisions[].legal_or_similar_effect
+      - id: d3
+        text: Can a human review or override the result before it takes effect?
+        field: automated_decisions[].human_review
+        also:
+          - ai_features[].human_review
+      - id: d4
+        text: If persons talk to an AI or see AI-generated content, how are they told it is AI?
+        field: ai_features[].marking
+        also:
+          - ai_features[].interacts_with_persons
+          - ai_features[].generates_content

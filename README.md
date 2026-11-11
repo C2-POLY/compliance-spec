@@ -19,9 +19,9 @@ An open format to describe, repo by repo, what a software service does with pers
 | --- | --- |
 | `spec/` | The format, in prose |
 | `schema/` | JSON Schemas, versioned by folder |
-| `skills/` | The compliance step for `/topic` |
+| `skills/` | The compliance step for `/topic`: [`skills/compliance-step`](skills/compliance-step) (triggers, questions, scenarios) |
 | `templates/` | Document templates (records of processing) |
-| `scripts/` | `validate.mjs` (check a file against its schema), `missing-services.mjs` |
+| `scripts/` | `validate.mjs` (check a file against its schema), `missing-services.mjs`, `check-triggers.mjs` (the compliance step's field paths exist in the schema) |
 | `tests/` | Fixtures (valid and invalid) and the test runner |
 | `examples/` | A complete example for a fictional restaurant booking app, « Bistro Booking » |
 

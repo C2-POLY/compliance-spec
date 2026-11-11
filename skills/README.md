@@ -62,7 +62,7 @@ It runs in a repo with a clean tree and no manifest, and:
 
 1. **scans** the code ([`scan.md`](compliance-init/scan.md): signals per manifest section, for JS/TS, Python, Go, Rust and Swift, and how to find the rest), and writes `.compliance/findings.md` as evidence; on a large repo it delegates the scan to a read-only sub-agent;
 2. **drafts** `.compliance/manifest.yaml` from the findings only: what the code shows gets `source: {kind: code, ref: <path>}`, nothing is invented;
-3. **asks once**, in one message with one question per topic (the controller first, and it blocks until answered; then legal basis, retention, countries, DPAs, safeguards, accounts, AI marking), only what the code cannot tell, and records the answers as `declared`; AI features and decisions found in the code are always kept, with conservative values to confirm when the code cannot settle them;
+3. **asks once**, in one message with one question per topic (the controller first, and it blocks until answered; then legal basis, except for a local app whose user is the controller (`not-applicable`), retention, countries, DPAs, safeguards, accounts, AI marking), only what the code cannot tell, and records the answers as `declared`; AI features and decisions found in the code are always kept, with conservative values to confirm when the code cannot settle them;
 4. sets the root `linked_files` from the files of the findings, and **validates** the manifest;
 5. adds `.github/workflows/compliance.yml` (check on pull requests with no secret, send on push to the default branch);
 6. writes `.compliance/COMPLIANCE.md` for the owner of the compliance repo: the `compliance.yaml` entry and draft `processing.yaml` files;

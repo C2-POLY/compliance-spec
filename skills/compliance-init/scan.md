@@ -156,7 +156,7 @@ How to tell what ships: follow the build (`Dockerfile` `COPY`, `package.json` `f
 These always become questions, even when the code has a hint. Ask them in the single message of the skill, and leave the manifest value out or `unknown` until answered:
 
 - the controller (`service.controller`);
-- the legal basis of each `personal_data` entry (`legal_basis`);
+- the legal basis of each `personal_data` entry (`legal_basis`), only when the controller is `organisation` or `shared`: with `user-of-the-app`, it is `not-applicable`;
 - the real retention of each store, and the event that starts it (`retention`);
 - for each processor: the country, whether a DPA is signed (`dpa`), and for a transfer outside the EU the safeguard;
 - the region of a database or bucket;

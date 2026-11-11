@@ -510,6 +510,14 @@ test('compliance-init: SKILL.md keeps its promises on git and on the manifest', 
   assert.doesNotMatch(skill, /gh pr merge [^`]|--auto\b/);
 });
 
+test('both skills set legal_basis to not-applicable when the user of the app is the controller', () => {
+  const rule = /`user-of-the-app`[^\n]*`legal_basis: not-applicable/;
+  assert.match(initText('SKILL.md'), rule);
+  assert.match(readFileSync(join(stepDir, 'SKILL.md'), 'utf8'), /`user-of-the-app`, do not ask a4[^\n]*`legal_basis: not-applicable`/);
+  assert.match(readFileSync(join(stepDir, 'triggers.md'), 'utf8'), /Not asked when `service.controller` is `user-of-the-app`/);
+  assert.match(readFileSync(join(root, 'spec', 'manifest.md'), 'utf8'), /`user-of-the-app`[^\n]*legal bases are `not-applicable`/);
+});
+
 test('compliance-init: the skills README lists it next to compliance-step', () => {
   const readme = readFileSync(join(root, 'skills', 'README.md'), 'utf8');
   assert.match(readme, /## compliance-init/);

@@ -1,0 +1,15 @@
+{
+  "name": "bistro-api",
+  "version": "1.4.0",
+  "private": true,
+  "description": "Booking API of Bistro Booking, a table booking app for restaurants.",
+  "dependencies": {
+    "pg": "^8.11.0",
+    "textflow-sdk": "^2.3.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}

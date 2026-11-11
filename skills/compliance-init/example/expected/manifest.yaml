@@ -1,0 +1,113 @@
+spec_version: "0.1"
+
+service:
+  name: Bistro Booking API
+  repo: bistro-org/bistro-api
+  description: Booking API of Bistro Booking, a table booking app for restaurants. It takes table bookings, reminds guests by SMS and drafts replies to guests' questions with an AI assistant.
+  controller: organisation # declared: question 1, engineering lead
+  source: {kind: declared, ref: "README.md; controller answered by the engineering lead during compliance-init"}
+
+personal_data:
+  - id: guest-contact
+    subjects: [restaurant guests]
+    fields:
+      - {name: guest full name, category: identity}
+      - {name: guest email address, category: contact}
+      - {name: guest phone number, category: contact}
+    purpose: identify guests and send them booking reminders by SMS
+    legal_basis: contract # declared: question 3, engineering lead
+    source: {kind: code, ref: "src/guests/model.ts"}
+
+  - id: dietary-notes
+    subjects: [restaurant guests]
+    fields:
+      - {name: guest dietary notes (free text), category: special}
+    purpose: record the dietary needs a guest mentions
+    legal_basis: consent # declared: question 3, engineering lead
+    source: {kind: code, ref: "src/guests/model.ts"}
+
+  - id: booking-details
+    subjects: [restaurant guests]
+    fields:
+      - {name: party size, category: usage}
+      - {name: booking date and time, category: usage}
+    purpose: manage table bookings
+    legal_basis: contract # declared: question 3, engineering lead
+    source: {kind: code, ref: "migrations/001.sql"}
+
+  - id: assistant-questions
+    subjects: [restaurant guests]
+    fields:
+      - {name: guest question to the restaurant (free text), category: unknown}
+    purpose: draft a reply to a guest's question
+    legal_basis: contract # declared: question 3, engineering lead
+    source: {kind: code, ref: "src/assistant/suggest.ts"}
+
+storage:
+  - id: main-db
+    kind: database
+    location: PostgreSQL, EU region (Frankfurt) # region declared: question 4, engineering lead
+    data: [guest-contact, dietary-notes, booking-details]
+    retention: {duration: P3Y, trigger: after the last booking of the guest} # declared: question 4, engineering lead
+    source: {kind: code, ref: "src/db.ts, migrations/001.sql"}
+
+  - id: app-logs
+    kind: log
+    location: standard output of the API, collected by the log service of the hosting provider # declared: question 4, engineering lead
+    data: [guest-contact]
+    retention: {duration: P30D, trigger: log rotation} # declared: question 4, engineering lead
+    source: {kind: code, ref: "src/notifications/sms.ts"}
+
+processors:
+  - id: textflow-sms
+    name: TextFlow SMS
+    service: SMS booking reminders
+    country: NL # declared: question 5, engineering lead
+    dpa: "yes" # declared: question 6, engineering lead
+    transfer_outside_eu: false # follows from the country declared in question 5
+    data: [guest-contact]
+    source: {kind: code, ref: "src/notifications/sms.ts"}
+
+  - id: chatloom
+    name: ChatLoom
+    service: AI drafts of replies to guests' questions
+    country: US # declared: question 5, engineering lead
+    dpa: unknown # declared: question 6, engineering lead ("not known")
+    transfer_outside_eu: true # follows from the country declared in question 5; safeguard not known, left out
+    data: [guest-contact, assistant-questions]
+    source: {kind: code, ref: "src/assistant/suggest.ts"}
+
+outbound_flows:
+  - id: send-sms
+    to: {name: TextFlow SMS, country: NL} # country declared: question 5
+    data: [guest-contact]
+    purpose: send the booking reminder by SMS
+    account: organisation # confirmed: question 7, engineering lead
+    source: {kind: code, ref: "src/notifications/sms.ts"}
+
+  - id: ask-assistant
+    to: {name: ChatLoom, country: US} # country declared: question 5
+    data: [guest-contact, assistant-questions]
+    purpose: get an AI draft of a reply to a guest's question
+    account: organisation # confirmed: question 7, engineering lead
+    source: {kind: code, ref: "src/assistant/suggest.ts"}
+
+automated_decisions: []
+
+ai_features:
+  - id: reply-drafting
+    description: A language model drafts a reply to a guest's question from the guest's name and the question. Staff edit and send the reply from the back office.
+    generates_content: true
+    interacts_with_persons: false
+    human_review: true # inferred from the code (the draft is only returned to the back office); to confirm
+    # marking: none. Declared in question 8: guests are not told, staff send the reply in their own name.
+    data: [guest-contact, assistant-questions]
+    source: {kind: code, ref: "src/assistant/suggest.ts"}
+
+linked_files:
+  - "src/guests/**"
+  - "src/db.ts"
+  - "src/notifications/sms.ts"
+  - "src/assistant/suggest.ts"
+  - "migrations/001.sql"
+  - "package.json"

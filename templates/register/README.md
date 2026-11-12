@@ -123,12 +123,14 @@ An **open item** of a processing is one of these, found in its section:
 
 | Open item | Found when |
 | --- | --- |
-| `<item>` | a row of `<item>` has the value `To complete`, or, for (a) Controller and (a) Data protection officer, a name or contact written `to complete` |
-| `(c) Personal data: category unknown` | a (c) Personal data row is built from fields of category `unknown` |
-| `(e) Transfers: safeguard not declared for <name> (<country>)` | a (e) Transfers row ends with `: safeguard not declared` |
-| `(e) Transfers: destination to assess for <name> (country unknown)` | a (e) Transfers row ends with `: destination to assess` |
+| `<item>` | the item has no source and reads `To complete`; for (a) Controller and (a) Data protection officer, also when a name or contact is written `to complete` |
+| `(c) Personal data: category unknown` | an in-scope `personal_data` field has the category `unknown` |
+| `(e) Transfers: safeguard not declared for <name> (<country>)` | a transfer exists for a recipient and no in-scope processor of the same name and country declares a `safeguard` |
+| `(e) Transfers: destination to assess for <name> (country unknown)` | an in-scope outbound flow has `to.country: unknown` |
 | `(f) Erasure time limits: unknown` | the `processing.retention` duration is `unknown` |
-| `(f) Erasure time limits: unknown for <storage id>` | an in-scope storage has the retention duration `unknown` |
+| `(f) Erasure time limits: unknown for <storage id>` | without `processing.retention`, an in-scope storage has the retention duration `unknown` |
+
+Open items come from the source fields, never from the rendered text: a purpose, a name or a safeguard whose words look like a gap ("To complete our offers", "SCC, safeguard not declared") is a value.
 
 `<item>` is the item label of the table above, for example `(g) Security measures`. Joint controller and representative are **not** open items: they are always `To complete` in v0.1 and could never be closed, which would hide the items that can. The section says so in one sentence.
 

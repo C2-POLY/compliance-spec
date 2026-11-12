@@ -6,7 +6,7 @@ The template of the GDPR Art. 30(1) records of processing activities (controller
 
 | File | Role |
 | --- | --- |
-| [`register.md.tmpl`](register.md.tmpl) | The layout: front matter, title, preface, one section per processing activity |
+| [`register.md.tmpl`](register.md.tmpl) | The layout: front matter, title, preface, open items, one section per processing activity |
 | this README | The mapping from the register items to the source fields, and the rules |
 
 The register is prepared for review by the controller and its DPO. It does not certify compliance.
@@ -113,6 +113,37 @@ A value no source gives is `To complete`, with the source `—`. It is never inv
 
 Always `To complete` in v0.1: joint controller and representative (the processing format has no field for them). Possibly: DPO, erasure time limits, security measures, recipients in a section.
 
+A person who does not know a required text value of `processing.yaml` yet may write `to complete` (any case) in it: `controller.name`, `controller.contact`, `dpo.name` or `dpo.contact`. The generator writes it `To complete`, and the row is an open item. The source of the row does not change.
+
+## Open items
+
+Gaps are expected: processings and manifests are filled while people work, before every answer is known. The register keeps each gap visible and lists them first, so that a review starts with what is missing.
+
+An **open item** of a processing is one of these, found in its section:
+
+| Open item | Found when |
+| --- | --- |
+| `<item>` | the item has no source and reads `To complete`; for (a) Controller and (a) Data protection officer, also when a name or contact is written `to complete` |
+| `(c) Personal data: category unknown` | an in-scope `personal_data` field has the category `unknown` |
+| `(e) Transfers: safeguard not declared for <name> (<country>)` | a transfer exists for a recipient and no in-scope processor of the same name and country declares a `safeguard` |
+| `(e) Transfers: destination to assess for <name> (country unknown)` | an in-scope outbound flow has `to.country: unknown` |
+| `(f) Erasure time limits: unknown` | the `processing.retention` duration is `unknown` |
+| `(f) Erasure time limits: unknown for <storage id>` | without `processing.retention`, an in-scope storage has the retention duration `unknown` |
+
+Open items come from the source fields, never from the rendered text: a purpose, a name or a safeguard whose words look like a gap ("To complete our offers", "SCC, safeguard not declared") is a value.
+
+`<item>` is the item label of the table above, for example `(g) Security measures`. Joint controller and representative are **not** open items: they are always `To complete` in v0.1 and could never be closed, which would hide the items that can. The section says so in one sentence.
+
+The open items of a processing are listed in the order of their rows, each once, joined by `; `; a processing with none reads `None`. The count is the number of open items of all processings.
+
+The summary line is:
+
+- `No processing activity yet.` when there is no processing;
+- `No open item in the <K> processing activities.` (`activity` when K is 1) when the count is 0;
+- otherwise `<N> open item(s) in <M> of the <K> processing activities.`, with `item` when N is 1 and `activity` when K is 1, M being the number of processings with at least one open item.
+
+None identified in the sources (recipients, transfers) is not an open item: the search ran and found nothing.
+
 ## Determinism
 
 The same inputs give the same bytes.
@@ -131,6 +162,7 @@ The same inputs give the same bytes.
 ---
 spec_version: "0.1"
 generated_at: "2026-11-11T00:00:00Z"
+open_items: 2
 anchors:
   bistro-api: "7c1e4f9a2b6d8035e1a4c7f90b2d6e8a1c3f5b79"
   bistro-web: "9d3f6b1a4c7e0258b1d4f7a0c3e6b9d2f5a8c1e4"
@@ -139,6 +171,7 @@ anchors:
 
 - `spec_version`: the template version, `"0.1"`.
 - `generated_at`: the input.
+- `open_items`: the count of open items, an integer (see Open items).
 - `anchors`: for each repo named by a `repo` entry of any processing, the full `sha` of its `services/<repo>/sync.yaml` at generation time. It has the same content as `repos` and `generated_at` in the `anchors.yaml` that the generator writes in the same run ([anchors rules](../../spec/compliance-repo.md#anchorsyaml)). Repos no processing refers to, and declared tools, are not in it. The shas are double-quoted strings here and in `anchors.yaml` and `sync.yaml`, so that a sha made only of digits and `e` is never read as a number; the generator writes them quoted.
 
 ## Template syntax
@@ -160,6 +193,9 @@ Context:
 | `spec_version` | root | `"0.1"` (without the quotes) |
 | `generated_at` | root | the input |
 | `organisation` | root | `compliance.yaml` `organisation.name` |
+| `open_items` | root | the count of open items |
+| `open_summary` | root | the summary line of the open items |
+| `open` | root | list of `{name, items}`, one per processing in the order of `processings`: `name` is `<name> (<id>)`, `items` the open items joined by `; ` or `None` |
 | `anchors` | root | list of `{repo, sha}`, sorted by `repo` |
 | `processings` | root | list of `{id, name, rows}`, sorted by `id` |
 | `rows` | in a processing | the flat list of `{item, value, source}` of the 11 items in order |

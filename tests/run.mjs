@@ -182,7 +182,9 @@ const exampleDir = join(root, 'examples', 'bistro-booking');
 const registerFile = join(exampleDir, 'documents', 'register.md');
 const registerText = existsSync(registerFile) ? readFileSync(registerFile, 'utf8') : '';
 const registerHead = registerText.match(/^---\n([\s\S]*?)\n---\n/);
-const registerRows = registerText
+// The processing sections, without the Open items summary that comes first.
+const registerBody = registerText.replace(/^## Open items\n[\s\S]*?(?=^## )/m, '');
+const registerRows = registerBody
   .split('\n')
   .filter((l) => l.startsWith('|') && !/^\| (Item|---)/.test(l))
   .map((l) => l.split(/(?<!\\)\|/).slice(1, -1).map((c) => c.trim()));
@@ -233,12 +235,23 @@ test('register: one section per processing, sorted by id, each with the 11 items
     const p = parse(readFileSync(join(exampleDir, 'processings', id, 'processing.yaml'), 'utf8'));
     return `## ${p.name} (${p.id})`;
   });
-  assert.deepEqual(registerText.match(/^## .+$/gm), expected);
-  for (const section of registerText.split(/^## /m).slice(1)) {
+  assert.deepEqual(registerBody.match(/^## .+$/gm), expected);
+  for (const section of registerBody.split(/^## /m).slice(1)) {
     const labels = section.split('\n').filter((l) => l.startsWith('|') && !/^\| (Item|---)/.test(l))
       .map((l) => l.split(/(?<!\\)\|/)[1].trim()).filter(Boolean);
     assert.deepEqual(labels, itemLabels);
   }
+});
+
+test('register: the Open items section comes first and its count is the front matter open_items', () => {
+  const head = parse(registerHead[1]);
+  const open = registerText.match(/^## Open items\n\n(.+)\n\n\| Processing activity \| Open items \|\n\| --- \| --- \|\n((?:\|.*\n)*)/m);
+  assert.ok(open, 'an Open items section with its summary and table');
+  assert.ok(registerText.indexOf('## Open items') < registerText.search(/^## (?!Open items)/m));
+  const items = open[2].trim().split('\n').map((l) => l.split(/(?<!\\)\|/)[2].trim()).filter((c) => c !== 'None').flatMap((c) => c.split('; '));
+  assert.equal(head.open_items, items.length);
+  assert.match(open[1], new RegExp(`^${items.length} open items? in \\d+ of the \\d+ processing activit(y|ies)\\.$`));
+  assert.doesNotMatch(open[2], /Joint controller|Representative/);
 });
 
 // Compliance init (skills/compliance-init)

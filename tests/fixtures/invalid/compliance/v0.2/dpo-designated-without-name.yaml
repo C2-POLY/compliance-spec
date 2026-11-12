@@ -1,0 +1,7 @@
+# expect: /organisation/dpo required
+spec_version: "0.2"
+organisation:
+  name: Bistro Booking Group
+  dpo: {designated: true, contact: dpo@bistro-booking.example}
+repos:
+  - {name: bistro-api, url: "https://github.com/bistro-org/bistro-api", owner: platform team, expected_to_send: true}

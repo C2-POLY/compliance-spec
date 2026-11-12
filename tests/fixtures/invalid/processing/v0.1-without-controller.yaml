@@ -1,0 +1,10 @@
+# expect: / required
+spec_version: "0.1"
+id: table-bookings
+name: Table bookings
+purpose: Take and confirm table bookings.
+data_subjects: [restaurant guests]
+legal_basis: contract
+services:
+  - repo: bistro-api
+source: {kind: declared, ref: operations team}

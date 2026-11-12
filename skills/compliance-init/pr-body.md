@@ -34,15 +34,15 @@ What nobody answered and the code does not tell. Left out or `unknown` in the ma
 
 ## To confirm
 
-Values set by the skill that nobody settled: a conservative default (`human_review: false`, `legal_or_similar_effect: true`), a value inferred from the code, or an account the code only suggests. They are in the manifest; check them.
+Values set by the skill that nobody settled: a conservative default (`human_review: false`, `legal_or_similar_effect: true`, an AI obligation `open`), a value inferred from the code (a privacy by design measure), or an account the code only suggests. They are in the manifest; check them.
 
 - `<section>/<id>.<field>` = `<value>`: <why it was set, and what to check>
 
 ## What this adds
 
-- `.compliance/manifest.yaml`: the manifest (<n> personal data, <n> stores, <n> processors, <n> outbound flows, <n> decisions, <n> AI features).
+- `.compliance/manifest.yaml`: the manifest (<n> personal data, <n> stores, <n> processors, <n> outbound flows, <n> decisions, <n> AI features, <n> notices).
 - `.compliance/findings.md`: the findings it was drafted from.
-- `.compliance/COMPLIANCE.md`: the `compliance.yaml` entry and draft processing files for the owner of the compliance repo.
+- `.compliance/COMPLIANCE.md`: for the owner of the compliance repo, the `compliance.yaml` with the organisation's identity to fill and this repo's entry, and draft processing files; for the DPO, the checks of each processing (legal basis detail, DPIA, information, sensitive data, joint controllers), which were not asked here.
 - `.github/workflows/compliance.yml`: checks the manifest on pull requests (no secret), sends it to the compliance repo on pushes to `<default branch>`.
 
 ## Reviewer checklist
@@ -53,7 +53,7 @@ Values set by the skill that nobody settled: a conservative default (`human_revi
 - [ ] Each "Still unknown" has an owner and a date, or a decision to leave it.
 - [ ] Contradictions between an answer and the code (below, if any) are settled; the code wins.
 - [ ] The workflow: `<compliance-owner>/<compliance-repo>`, the `compliance` environment and the App secrets exist; actions are pinned by SHA.
-- [ ] `.compliance/COMPLIANCE.md` is handed to the owner of the compliance repo.
+- [ ] `.compliance/COMPLIANCE.md` is handed to the owner of the compliance repo, and its section 3 to the DPO.
 - [ ] No secret or personal data in the files.
 ````
 

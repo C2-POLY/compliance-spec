@@ -1,0 +1,8 @@
+spec_version: "0.2"
+organisation:
+  name: Bistro Booking Group
+  controller: {legal_name: to complete, contact: to complete}
+  dpo: {designated: unknown}
+  representative: {required: unknown}
+repos:
+  - {name: bistro-api, url: "https://github.com/bistro-org/bistro-api", owner: platform team, expected_to_send: true}

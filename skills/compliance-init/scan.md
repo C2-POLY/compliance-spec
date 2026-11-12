@@ -14,7 +14,7 @@ The scan can be long on a large repo. Hand it to a read-only sub-agent (it needs
    ```
 
    `git grep` is fast and skips untracked and ignored files. Outside git, use `grep -rnIiE` with `--exclude-dir`.
-3. **Search by section**, in the order of [section 2 to 5](#2-personal_data), with the patterns below. Start from the entry points and the data layer (models, migrations, the HTTP and SDK clients) and follow imports from there; a name hit in a file nobody imports is weak.
+3. **Search by section**, in the order of [section 2 to 5](#2-personal_data), then the notices of [section 9](#9-service-notices-and-linked_files), with the patterns below. Start from the entry points and the data layer (models, migrations, the HTTP and SDK clients) and follow imports from there; a name hit in a file nobody imports is weak.
 4. **Read every hit** around its line before recording it. A regex hit is a lead, not a finding.
 5. **Record** each finding with its file and line, what was seen, a confidence and what it becomes in the manifest ([`findings.md`](findings.md)).
 6. **Then list the gaps** as questions: what the code cannot tell (see [section 8](#8-what-the-code-cannot-tell)).
@@ -50,7 +50,9 @@ Field names worth a search (case-insensitive): `email|e_mail|phone|mobile|tel\b|
 | Rust | `struct` deriving `Serialize` / `Deserialize` / `FromRow`; `sqlx::query!`; Diesel `table!` / `schema.rs`; `serde(rename = ...)` |
 | Swift | `struct X: Codable`; SwiftData `@Model`; Core Data model files; `UserDefaults`; `@AppStorage`; `CNContact`, `CLLocation`, `HKHealthStore` and other system APIs that read personal data |
 
-**Category** (the manifest's closed list): `identity` (name, login, any identifier), `contact` (email, phone, postal address), `financial`, `location`, `usage` (behaviour, history, scores, timestamps), `professional`, `health`, `special` (Art. 9 data, or free text that may reveal it: a dietary note can), `credential` (password, hash, token, key), `unknown` (content whose nature the service cannot know: user files, free text). Do not invent a category: use `unknown`.
+**Category** (the manifest's closed list): `identity` (name, login, any identifier), `contact` (email, phone, postal address), `financial`, `location`, `usage` (behaviour, history, scores, timestamps), `professional`, `connection` (IP address, user agent and other technical headers, device identifiers), `health`, `special` (Art. 9 data, or free text that may reveal it: a dietary note can), `credential` (password, hash, token, key), `unknown` (content whose nature the service cannot know: user files, free text). Do not invent a category: use `unknown`.
+
+**Connection data.** A component that persons reach over the network (a web API, a site: `app.listen`, `http.ListenAndServe`, route handlers, a `Dockerfile` `EXPOSE`) is served by a host that sees their IP address and headers; a component that runs on the person's device (a desktop, mobile or browser app) and calls a third party shows that party the person's IP address. Either way, record a `personal_data` entry of category `connection` (`inferred`, from the file that serves the requests or makes the call), even when nothing in the code stores it. Also record the code that reads it on purpose (`req.ip`, `X-Forwarded-For`, `user-agent`, rate limiters, device ids): that is `found`.
 
 One `personal_data` entry per set of data collected for the same purpose. The purpose is read from the README or the code that uses the data and is `inferred`; the legal basis is never read from code (it becomes a question).
 
@@ -102,9 +104,11 @@ For each call, read what data goes in: the body, the query, the arguments, the p
 
 **Processor or flow only?** An entry in `processors` is a provider **contracted by the organisation**, with a data processing agreement: the key or contract belongs to the organisation (a service key from the environment, in the deployment configuration, or in a secret manager). The same call is also an `outbound_flows` entry with `account: organisation`. A recipient reached with the user's own account or tool (the user's `gh` login, the user's git remotes, the user's calendar, a user-supplied token) is an `outbound_flows` entry only, `account: user`. A plain unauthenticated call is `account: none`. When the code does not tell whose account it is, record `inferred` and ask.
 
-A flow that sends **no personal data** (an update check or a version lookup: only the IP address and the technical headers every HTTP call carries) is still an `outbound_flows` entry, with `data: []` and a `purpose` that says so ("update check; sends only the IP address and the technical headers"). The schema allows an empty `data` list. Do not drop it: the recipient sees the IP address.
+A flow that sends **nothing but the connection** (an update check or a version lookup: only the IP address and the technical headers every HTTP call carries) is still an `outbound_flows` entry, with a `purpose` that says so ("update check; sends only the IP address and the technical headers"). From the person's device, its `data` is the `connection` entry of [section 2](#2-personal_data): the recipient sees the person's IP address. From a server of the organisation, it carries no person's data: `data: []` (the schema allows an empty list). Do not drop it.
 
-Never infer a **country** from a domain name, a TLD or a library. Country, DPA and safeguards are questions.
+When a flow goes to a processor of the same manifest, record the link (`processor: <id>` in the manifest).
+
+Never infer a **country** from a domain name, a TLD or a library. Country, DPA (and where the agreement is: `dpa_ref`) and safeguards are questions.
 
 ## 5. `automated_decisions` and `ai_features`
 
@@ -125,6 +129,12 @@ A feature that uses AI that talks to persons or generates content. Signals:
 | Image, audio, text generation or classification | `generate`, `summarize`, `classify`, `transcribe`, `synthesize` |
 
 For each one, read **from the code** and record as `found` or `inferred`: what personal data goes into the prompt (list the ids); whether a person talks to it (`interacts_with_persons`); whether it produces text, image, audio or video (`generates_content`); and whether the output goes through a person before it is used (`human_review`: a person must click to apply or send it means `true`; a result applied automatically means `false`). Then check whether the interface tells the person it is AI (search UI strings for `AI`, `assistant`, `generated`, `bot`): `marking` is a question unless a string says it. If `human_review` is unclear, ask; if it stays unanswered, write the conservative value `false` and flag it "to confirm". An AI feature found in the code is never dropped from the manifest: `ai_features: []` must only mean "none found". An AI call that sends personal data is also a `processors` / `outbound_flows` entry.
+
+**AI Act role, risk and obligations.** Record what the code hints, as `inferred`, and leave the decision to the answers:
+
+- **Role**: a call to a third party's model API or a packaged model suggests the organisation is a `deployer` of that system; training or fine-tuning a model, or putting the feature into service under the organisation's own name, suggests `provider`. Usually unclear: a question.
+- **Risk**: what the feature is used for decides it. A use that decides about persons in hiring, credit, education, essential services, law enforcement or migration (the high-risk list), emotion recognition or biometric categorisation is a strong hint of `high` or worse: record it and ask. A chat assistant or a content generator with no such use suggests `limited`. A question unless a spec states it.
+- **Obligations**: list the ones the spec expects (`spec/manifest.md`, `ai_features`), and look for evidence of each: a UI string telling the person they talk to an AI (`art50-interaction`), a label or metadata marking generated content (`art50-synthetic-content`). Found: `done`, with the file in `ref`. Not found: `open`, to confirm. AI literacy (`art4-ai-literacy`) is never in the code: `open`, to confirm.
 
 ## 6. What never counts
 
@@ -162,13 +172,20 @@ These always become questions, even when the code has a hint. Ask them in the si
 - the region of a database or bucket;
 - the country of every recipient (processors and outbound flows), and whose account a flow uses when that is only inferred;
 - for each automated decision: legal or similar effect, and human review when the code is unclear;
-- for each AI feature: how persons are told it is AI (`marking`), and human review when the code is unclear.
+- for each AI feature: how persons are told it is AI (`marking`), human review when the code is unclear, and its AI Act role and risk level unless a spec states them;
+- where persons are told about their data, when the code of a component they use shows no notice;
+- where the data processing agreement of each processor is (`dpa_ref`);
+- why the organisation is not the controller, when question 1 says so (`service.controller_rationale`).
 
 The controller is the first question and a blocking one: `service.controller` has no `unknown`. A hint from the code (a local app with no server of the organisation suggests `user-of-the-app`) goes in the question; the person decides.
 
-## 9. `service` and `linked_files`
+**Not questions for the developer.** The legal basis detail (balancing test, consent records, the contract or law relied on), whether a DPIA is required, the special categories of data and the joint controllers are the DPO's checks. The scan records the hints it sees (a `special` or `health` field, a score about persons, a large volume, a partner that decides with the organisation) in the findings; the skill hands them to the DPO in `.compliance/COMPLIANCE.md` and never asks them.
 
-- `service`: `name`, `description` and the repo come from the README, the package manifest and the git remote; `controller` is a question. Several deliverables become `service.components` with a `kind` each, and items name their `component`.
+## 9. `service`, `notices` and `linked_files`
+
+- `service`: `name`, `description` and the repo come from the README, the package manifest and the git remote; `controller` is a question. Several deliverables become `service.components` with a `kind` each, and items name their `component`. When the deliverables differ in who controls the data (a site run by the organisation, an offline app whose data never leaves the device), say so in question 1: a component may get its own `controller`.
+- `service.privacy_by_design`: measures the code shows, written as short statements, each `inferred` and to confirm: data kept on the device and never sent ("notes never leave the device"), no account needed, analytics sent only after consent, data minimised or pseudonymised before it is sent (a hash of an id, a truncated IP), encryption of a local store. Written only when a controller is not `organisation` (the manifest expects it there; a person may add it for any service).
+- `notices`: where the persons are told about their data. Signals: a privacy or data-protection page or route (`privacy`, `confidentialite`, `datenschutz`, `/legal`, `privacy-policy`), a consent or cookie banner (`consent`, `cookie`, `gdpr`, a consent-management SDK), an onboarding, permission or settings screen whose text speaks of data (`NSLocationWhenInUseUsageDescription` and the other usage strings, an "About your data" screen), an email template with a privacy notice or an unsubscribe link. One `notices` entry each, `kind` `page`, `screen`, `banner` or `email`, `ref` the URL, file or screen name, `found`. None found for a component persons use: a question. A notice that only exists outside the repo (the website of another repo) is an answer, recorded as `declared`.
 - `linked_files`: the union of the files of the findings (the `Where` column). Write the files as paths relative to the repo root; collapse to `dir/**` when a folder holds several of them; apply the rule of `SKILL.md` step 6: collapse to `dir/**` only when the findings' files are at least half of that folder's files (2 of 3, 4 of 8) or the folder is a dedicated module; otherwise list the files. Do not link test files, fixtures or documentation.
 
 ## 10. Other stacks

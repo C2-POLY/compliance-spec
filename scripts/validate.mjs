@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-// Validate YAML files against the v0.1 schemas.
+// Validate YAML files against the v0.1 and v0.2 schemas.
 // Usage: node scripts/validate.mjs [--schema <name>] <file>...
 // Without --schema, the schema is picked from the file name (manifest.yaml, processing.yaml, ...).
+// The version is picked from the file's own spec_version: "0.2" uses schema/v0.2, anything else schema/v0.1.
 import { readFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,12 +11,15 @@ import addFormats from 'ajv-formats';
 import { parse } from 'yaml';
 
 export const SCHEMAS = ['manifest', 'processing', 'compliance', 'sync', 'anchors'];
-const schemaDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'schema', 'v0.1');
+export const VERSIONS = ['0.1', '0.2'];
+const schemaRoot = join(dirname(fileURLToPath(import.meta.url)), '..', 'schema');
 
 const ajv = new Ajv2020({ allErrors: true });
 addFormats(ajv);
-for (const name of SCHEMAS) {
-  ajv.addSchema(JSON.parse(readFileSync(join(schemaDir, `${name}.schema.json`), 'utf8')), name);
+for (const version of VERSIONS) {
+  for (const name of SCHEMAS) {
+    ajv.addSchema(JSON.parse(readFileSync(join(schemaRoot, `v${version}`, `${name}.schema.json`), 'utf8')), `${version}/${name}`);
+  }
 }
 
 // File name convention: <schema>.yaml. Fixtures may also be named <anything>.yaml inside a folder named after the schema.
@@ -25,23 +29,43 @@ export function schemaFor(file) {
   return dirname(file).split(/[\\/]/).reverse().find((part) => SCHEMAS.includes(part));
 }
 
+// The schema version of a parsed file: its spec_version when it is a known version, else "0.1" (which then reports the bad spec_version).
+export const versionOf = (doc) => (VERSIONS.includes(doc?.spec_version) ? doc.spec_version : '0.1');
+
 // Rules JSON Schema cannot express: unique ids, and references between items of one manifest.
 function crossChecks(schema, doc) {
   if (schema !== 'manifest' || typeof doc !== 'object' || doc === null) return [];
   const errors = [];
   const fail = (instancePath, message) => errors.push({ instancePath, keyword: 'ref', message });
+  const duplicate = (instancePath, id) => errors.push({ instancePath, keyword: 'uniqueId', message: `duplicate id "${id}"` });
   const dataIds = new Set((doc.personal_data ?? []).map((item) => item?.id));
   const componentIds = new Set((doc.service?.components ?? []).map((item) => item?.id));
-  for (const list of ['personal_data', 'storage', 'processors', 'outbound_flows', 'automated_decisions', 'ai_features']) {
+  const processorIds = new Set((doc.processors ?? []).map((item) => item?.id));
+  const seenComponents = new Set();
+  (doc.service?.components ?? []).forEach((item, i) => {
+    if (seenComponents.has(item?.id)) duplicate(`/service/components/${i}/id`, item.id);
+    seenComponents.add(item?.id);
+  });
+  for (const list of ['personal_data', 'storage', 'processors', 'outbound_flows', 'automated_decisions', 'ai_features', 'notices']) {
     const seen = new Set();
     (doc[list] ?? []).forEach((item, i) => {
-      if (seen.has(item?.id)) errors.push({ instancePath: `/${list}/${i}/id`, keyword: 'uniqueId', message: `duplicate id "${item.id}"` });
+      if (seen.has(item?.id)) duplicate(`/${list}/${i}/id`, item.id);
       seen.add(item?.id);
       (item?.data ?? []).forEach((ref, j) => {
         if (!dataIds.has(ref)) fail(`/${list}/${i}/data/${j}`, `no personal_data with id "${ref}"`);
       });
       if (item?.component !== undefined && !componentIds.has(item.component)) {
         fail(`/${list}/${i}/component`, `no service component with id "${item.component}"`);
+      }
+      if (list === 'outbound_flows' && item?.processor !== undefined && !processorIds.has(item.processor)) {
+        fail(`/${list}/${i}/processor`, `no processor with id "${item.processor}"`);
+      }
+      if (list === 'ai_features') {
+        const obligations = new Set();
+        (item?.obligations ?? []).forEach((o, j) => {
+          if (obligations.has(o?.id)) duplicate(`/${list}/${i}/obligations/${j}/id`, o.id);
+          obligations.add(o?.id);
+        });
       }
     });
   }
@@ -52,7 +76,7 @@ function crossChecks(schema, doc) {
 export function validateFile(file, schema = schemaFor(file)) {
   if (!SCHEMAS.includes(schema)) throw new Error(`Unknown schema for ${file}. Use --schema (${SCHEMAS.join(', ')}).`);
   const doc = parse(readFileSync(file, 'utf8'));
-  const validate = ajv.getSchema(schema);
+  const validate = ajv.getSchema(`${versionOf(doc)}/${schema}`);
   const errors = validate(doc) ? [] : validate.errors;
   return [...errors, ...crossChecks(schema, doc)].map(({ instancePath, keyword, message }) => ({
     instancePath: instancePath || '/',

@@ -9,13 +9,13 @@ A short step for `/topic`-style workflows. It runs once the issue is defined and
 
 It prepares documentation. It does not certify compliance and does not replace a Data Protection Officer: a person reviews what it writes.
 
-Files in this folder: [`triggers.md`](triggers.md) (what each trigger means), [`triggers.yaml`](triggers.yaml) (the questions and the manifest field each fills), `scenarios/` (worked examples). The manifest format is the [compliance-spec](https://github.com/C2-POLY/compliance-spec) v0.1 (`spec/manifest.md`).
+Files in this folder: [`triggers.md`](triggers.md) (what each trigger means), [`triggers.yaml`](triggers.yaml) (the questions and the manifest field each fills), `scenarios/` (worked examples). The manifest format is the [compliance-spec](https://github.com/C2-POLY/compliance-spec) v0.2 (`spec/manifest.md`).
 
 ## Steps
 
-1. **Read.** Read the issue (title, story, context, criteria, out of scope). If a branch or diff exists, read it too (`git diff <base>...HEAD`). Read `.compliance/manifest.yaml` of the repo; if it does not exist, say so and create it from the schema (`spec_version: "0.1"`, `service` filled from the README, the six lists `[]`).
-2. **Evaluate the triggers.** For each trigger in `triggers.yaml` (a: personal data field, b: external service, c: storage or retention, d: automated decision or AI), compare the signals in `triggers.md` with the issue and the diff. Read the current `.compliance/manifest.yaml` first: data, recipients and stores it already lists for the same purpose and legal basis are not new and do not fire a trigger. Write down which fired and why. If you are unsure, fire it.
-3. **Ask only the fired questions.** Take the questions of the fired triggers from `triggers.yaml`, drop those the issue or the diff already answers (state the answer back instead), and send them in **one message, numbered**, each with its id (`a1`, `b2`...). Do not ask about triggers that did not fire. When the manifest's `service.controller` is `user-of-the-app`, do not ask a4: the organisation is not the controller of what the user processes locally, so new `personal_data` entries get `legal_basis: not-applicable` (`spec/manifest.md`, `service`). Wait for the answers.
+1. **Read.** Read the issue (title, story, context, criteria, out of scope). If a branch or diff exists, read it too (`git diff <base>...HEAD`). Read `.compliance/manifest.yaml` of the repo; if it does not exist, say so and create it from the schema (`spec_version: "0.2"`, `service` filled from the README, the six lists `[]`). A manifest still at `spec_version: "0.1"` cannot hold the v0.2 fields (`dpa_ref`, a flow's `processor`, `notices`, the AI role and risk, the `connection` category): when an answer needs one, change its `spec_version` to `"0.2"` in the same change (every v0.2 field is optional, so nothing else changes) and say so in the report.
+2. **Evaluate the triggers.** For each trigger in `triggers.yaml` (a: personal data field, b: external service, c: storage or retention, d: automated decision or AI, e: notice to persons, f: AI role or risk), compare the signals in `triggers.md` with the issue and the diff. Read the current `.compliance/manifest.yaml` first: data, recipients and stores it already lists for the same purpose and legal basis are not new and do not fire a trigger. Write down which fired and why. If you are unsure, fire it.
+3. **Ask only the fired questions.** Take the questions of the fired triggers from `triggers.yaml`, drop those the issue or the diff already answers (state the answer back instead), and send them in **one message, numbered**, each with its id (`a1`, `b2`...). Do not ask about triggers that did not fire. When the manifest's `service.controller` is `user-of-the-app`, do not ask a4: the organisation is not the controller of what the user processes locally, so new `personal_data` entries get `legal_basis: not-applicable` (`spec/manifest.md`, `service`). The same holds for an entry of a component whose `controller` is `user-of-the-app`. a4 asks the legal basis **and its detail** (the contract or law relied on, the balancing of interests, or how consent is collected and withdrawn): the basis goes to the manifest, the detail to the Compliance section for the processing file. Wait for the answers.
 4. **Never guess.** An unanswered or unknown question is not filled in with a likely value. Write `unknown` where the schema allows it (`dpa`, `retention.duration`, country of an outbound flow); leave `legal_basis` out; otherwise add a line `TODO: <question id> <question>` to the Compliance section and do not touch that field.
 5. **Write the section into the issue body** (`gh issue edit <n> --body-file`), at the end:
 
@@ -25,12 +25,13 @@ Files in this folder: [`triggers.md`](triggers.md) (what each trigger means), [`
      **Compliance**
 
      - <trigger name>: <what changes, in one line, with the ids written to the manifest>
+       - Legal basis detail, for the processing file: <the answer to a4's detail>
      - <one line per fired trigger>
 
      Manifest: updated in this branch
      ```
 
-     `TODO:` lines for unanswered questions go between the trigger lines and the `Manifest:` line.
+     `TODO:` lines for unanswered questions go between the trigger lines and the `Manifest:` line. The legal basis detail is a sub-item of trigger a, only when a4 was asked: the manifest has no field for it, and the DPO copies it to `legal_basis_detail` of the processing file. An unanswered detail is a `TODO: a4 legal basis detail`.
 
    - if nothing fired, two lines and nothing else:
 
@@ -42,7 +43,10 @@ Files in this folder: [`triggers.md`](triggers.md) (what each trigger means), [`
 6. **Update the manifest in the same branch** (`.compliance/manifest.yaml`). Skip this step when nothing fired.
    - Add or change only the items the answers concern. Every item you add or change gets `source: {kind: spec, ref: <issue url>}`, including a store whose `data` list you extend. Never touch other items.
    - Ids are lowercase with hyphens, unique within their list. Every `data` entry refers to an existing `personal_data` id.
-   - A new `processors` entry comes with a matching `outbound_flows` entry (`account: organisation`); a recipient reached with the user's own account is an `outbound_flows` entry only.
+   - A new `processors` entry comes with a matching `outbound_flows` entry (`account: organisation`, `processor: <processor id>`) and, when b3 gives it, `dpa_ref`; a recipient reached with the user's own account is an `outbound_flows` entry only, with its own `safeguard` when it leaves the EU/EEA or goes to an unknown country.
+   - An IP address, technical headers or a device identifier is category `connection`.
+   - A notice (trigger e) is a `notices` entry: `kind` and `ref` from e1 and e2, `component` when the manifest has components. A notice removed with nothing in its place becomes `kind: none`, never a deleted entry.
+   - An AI feature (trigger f) gets `role`, `risk` and `obligations` from f1 to f3. `obligations` lists every obligation the spec expects for the feature (`spec/manifest.md`, `ai_features`); an expected one the answers do not settle is `status: open`. An unknown role or level is `to-assess`.
    - Add the files the change touches to `linked_files` (item and root) when they are not covered yet.
 7. **Validate.** Run `node <spec>/scripts/validate.mjs .compliance/manifest.yaml` (`<spec>` is a checkout of compliance-spec, or the path the repo's CI uses). If that script is not available, say so in the report and re-read the YAML against `spec/manifest.md`. Fix errors before going on. Do not report the step as done on an invalid manifest.
 8. **Report** to the workflow: which triggers fired (or none), what was written to the issue and the manifest, the `TODO` questions still open. Open `TODO` questions are carried to the plan gate.

@@ -5,7 +5,7 @@ The scan ([`scan.md`](scan.md)) ends in one file, `.compliance/findings.md`. It 
 Rules:
 
 - One table per manifest section, in the order below. A section with no finding keeps its heading and the line `None found.` (an empty list in the manifest is a statement, so say it).
-- One row per finding. The `#` is a prefix and a number, unique in the file: `P` personal_data, `S` storage, `R` processors, `O` outbound_flows, `D` automated_decisions, `A` ai_features.
+- One row per finding. The `#` is a prefix and a number, unique in the file: `P` personal_data, `S` storage, `R` processors, `O` outbound_flows, `D` automated_decisions, `A` ai_features, `N` notices.
 - **Where** is `path:line` or `path:first-last`, relative to the repo root, in backticks; several places are separated by commas. A file seen as a whole (a dependency list, a migration, a config file) may be given as `path` with no line. A finding without a file is not a finding.
 - **Confidence** is `found` (the code shows it) or `inferred` (deduced; **What** says from what).
 - **Becomes** lists one or more targets separated by commas: a manifest item as `<section>/<id>`, `question <n>` for a question the row raises (write `question 5, question 6` for two), or `out: <reason>` for something deliberately not in the manifest (for example `out: dev-only script`). Every row has at least one target.
@@ -53,6 +53,11 @@ None found.
 | # | What | Where (file:line) | Confidence | Becomes |
 | --- | --- | --- | --- | --- |
 
+## notices
+
+| # | What | Where (file:line) | Confidence | Becomes |
+| --- | --- | --- | --- | --- |
+
 ## Not counted
 
 | What | Where | Why |
@@ -75,3 +80,4 @@ What the code cannot tell. They are asked in one message; unanswered ones stay `
 - The files of the **Where** column are the source of the manifest's root `linked_files`.
 - Every `code` source in the manifest names a file that appears in this table.
 - An item of the manifest with no row here is either declared by a person (an answer) or a mistake.
+- The AI rows say what the code hints about the role, the risk and the obligations (`scan.md`, section 5); the DPO hints (special categories, scores about persons, volume) are written in **What** too, and go to the handoff, not to the questions.

@@ -1,0 +1,56 @@
+spec_version: "0.2"
+service:
+  name: Bistro Booking Web
+  description: Booking website and its offline app.
+  controller: organisation
+  controller_rationale: The offline app keeps notes on the guest's device only.
+  privacy_by_design: [notes never leave the device]
+  components:
+    - {id: site, kind: frontend}
+    - {id: offline-app, kind: progressive-web-app, controller: user-of-the-app}
+  source: {kind: declared, ref: README.md}
+personal_data:
+  - id: booking-form
+    component: site
+    subjects: [restaurant guests]
+    fields:
+      - {name: guest email, category: contact}
+      - {name: IP address, category: connection}
+    purpose: book a table
+    source: {kind: code, ref: "src/BookingForm.tsx"}
+storage: []
+processors:
+  - id: paygate
+    name: PayGate
+    service: card deposits
+    country: US
+    dpa: "yes"
+    dpa_ref: PayGate data processing addendum
+    transfer_outside_eu: true
+    source: {kind: code, ref: "src/pay.ts"}
+outbound_flows:
+  - id: charge-deposit
+    to: {name: PayGate, country: US}
+    data: [booking-form]
+    purpose: charge the deposit
+    account: organisation
+    processor: paygate
+    safeguard: standard contractual clauses
+    source: {kind: code, ref: "src/pay.ts"}
+automated_decisions: []
+ai_features:
+  - id: booking-assistant
+    description: A chat assistant answers guests' questions.
+    generates_content: true
+    interacts_with_persons: true
+    human_review: false
+    role: deployer
+    risk: {level: limited, reason: chat assistant}
+    obligations:
+      - {id: art4-ai-literacy, status: done, ref: staff training}
+      - {id: art50-interaction, status: open}
+      - {id: art50-synthetic-content, status: not-applicable}
+    source: {kind: code, ref: "src/assistant/chat.ts"}
+notices:
+  - {id: privacy-page, component: site, kind: page, ref: "https://bistro-booking.example/privacy", source: {kind: code, ref: "src/pages/privacy.tsx"}}
+  - {id: no-notice, kind: none, ref: offline app first screen, source: {kind: declared, ref: web team}}

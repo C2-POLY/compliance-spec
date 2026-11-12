@@ -1,0 +1,7 @@
+# expect: /organisation additionalProperties
+spec_version: "0.2"
+organisation:
+  name: Bistro Booking Group
+  vat_number: FR00000000000
+repos:
+  - {name: bistro-api, url: "https://github.com/bistro-org/bistro-api", owner: platform team, expected_to_send: true}

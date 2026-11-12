@@ -1,8 +1,10 @@
-# Compliance repo layout, v0.1
+# Compliance repo layout, v0.2
 
-> Status: draft. Schemas are in [`schema/v0.1/`](../schema/v0.1/).
+> Status: draft. Schemas are in [`schema/v0.2/`](../schema/v0.2/) and [`schema/v0.1/`](../schema/v0.1/).
 
-An organisation has one **compliance repo**. It holds no code. It gathers the manifests of every repo of the information system, organised by **processing activity**, and the documents generated from them (the GDPR Art. 30 records of processing). A complete example is in [`examples/bistro-booking/`](../examples/bistro-booking/).
+An organisation has one **compliance repo**. It holds no code. It gathers the manifests of every repo of the information system, organised by **processing activity**, and the documents generated from them: in v0.2, a compliance dossier a DPO can review (the GDPR Art. 30 records of processing, the DPO checks of each processing, the AI features, and what stays outside the register); in v0.1, the records of processing only. A complete v0.2 example is in [`examples/bistro-booking/`](../examples/bistro-booking/); the v0.1 example is kept in [`tests/fixtures/v0.1/bistro-booking/`](../tests/fixtures/v0.1/bistro-booking/).
+
+Fields marked **(v0.2)** are new in v0.2 and rejected in a v0.1 file.
 
 ```
 compliance.yaml                      the repos and tools of the information system
@@ -13,6 +15,15 @@ services/<repo>/sync.yaml            when it was sent, and how far the repo is a
 declared/<tool>/manifest.yaml        hand-declared manifest of an external tool
 documents/                           generated documents (documents/register.md ...)
 ```
+
+## Versions
+
+Each file declares its own `spec_version`, and the validator picks the schema directory from it (`schema/v0.1/` or `schema/v0.2/`).
+
+- A **v0.2 compliance repo** is one whose `compliance.yaml` has `spec_version: "0.2"`. Its generator writes the v0.2 dossier ([rules](../templates/register/README.md#v02-the-compliance-dossier)), in English or French (`documents/register.md` either way).
+- A v0.2 compliance repo may hold v0.1 and v0.2 manifests and processing files: a repo that has not upgraded keeps sending its v0.1 manifest. A v0.2 field missing from a v0.1 file is an open item of the dossier, never an error.
+- A **v0.1 compliance repo** keeps the v0.1 register, unchanged.
+- `sync.yaml` and `anchors.yaml` have the same shape in both versions; a v0.2 copy only changes `spec_version`. Both are accepted in either kind of repo.
 
 ## Who writes what
 
@@ -38,21 +49,63 @@ One file per processing activity (a purpose, a set of data subjects, a legal bas
 
 | Field | Type | Required | Meaning |
 | --- | --- | --- | --- |
-| `spec_version` | string | yes | `"0.1"`. |
+| `spec_version` | string | yes | `"0.2"` (or `"0.1"`). |
 | `id` | id | yes | `^[a-z0-9][a-z0-9-]*$`; equals the folder name. |
 | `name` | string | yes | Human name. |
 | `purpose` | string | yes | Why the data is processed. |
-| `controller` | `{name, contact}` | yes | The controller of this processing (Art. 30(1)(a)). |
-| `dpo` | `{name, contact}` | no | The data protection officer, when there is one. |
+| `controller` | `{name, contact}` | v0.1: yes; v0.2: no | The controller of this processing (Art. 30(1)(a)). **(v0.2)** Optional: absent, the dossier uses `organisation.controller` of `compliance.yaml`; present, it wins. |
+| `dpo` | `{name, contact}` | no | The data protection officer, when there is one. **(v0.2)** Absent, the dossier uses `organisation.dpo` of `compliance.yaml`; present, it wins. |
+| `joint_controllers` | list | no | **(v0.2)** The joint controllers (Art. 26): `{name, contact, arrangement}`, all three required; `arrangement` is the arrangement between them or where it is. `[]` means none, stated by a person. Absent means not confirmed: an open item. |
 | `data_subjects` | list of strings | yes | Categories of persons. |
 | `legal_basis` | enum | yes | Same values as in the manifest: `consent`, `contract`, `legal-obligation`, `vital-interests`, `public-task`, `legitimate-interests`, `not-applicable`. |
+| `legal_basis_detail` | object | no | **(v0.2)** What documents the legal basis. See [DPO checks](#dpo-checks-v02). |
+| `dpia` | object | no | **(v0.2)** Whether a data protection impact assessment (Art. 35) is required. See [DPO checks](#dpo-checks-v02). |
+| `information` | object | no | **(v0.2)** How the persons are told (Art. 13 and 14). See [DPO checks](#dpo-checks-v02). |
+| `sensitive_data` | `none` \| `to-assess` \| list | no | **(v0.2)** Special categories of data (Art. 9). See [DPO checks](#dpo-checks-v02). |
 | `services` | list | yes | The repos and tools involved. Each entry has `repo` (a name from `compliance.yaml`) **or** `tool` (a `declared_tools` id), and optionally `data`: the `personal_data` ids of that service's manifest that belong to this processing (no `data` means all of them), and `recipients`: the `processors` and `outbound_flows` ids of that manifest that belong to this processing (no `recipients` means those that share an id with the entry's `data` scope; `recipients: []` means none). |
 | `security_measures` | list | no | `{measure, source}`: technical and organisational measures (Art. 30(1)(g)). |
 | `recipients` | list | no | `{name, source}`: recipients (Art. 30(1)(d)) the manifests do not already show. |
 | `retention` | object | no | `{duration, trigger, source}`: overrides the retention of the manifests for this processing. `duration` has the manifest format. |
 | `source` | source | yes | Provenance of the file. |
 
-Every declared value carries a `source` (`kind: declared` in practice, with the person or document in `ref`), as in the manifests.
+Every declared value carries a `source` (`kind: declared` in practice, with the person or document in `ref`), as in the manifests. Values without a `source` of their own (`controller`, `dpo`, `joint_controllers`, the DPO checks) take the file's `source`.
+
+### DPO checks (v0.2)
+
+Every field is optional in the schema: a processing is written while people work, before every answer is known. Absent, or with the value `to-assess`, a check is an **open item** of the dossier.
+
+```yaml
+legal_basis_detail:
+  balancing_test: {interest: "…", necessity: "…", impact: "…", safeguards: "…"}
+  consent: {collection: "…", withdrawal: "…"}
+  reference: "…"
+dpia:
+  required: "yes"
+  criteria: [evaluation, sensitive]
+  ref: "DPIA-2026-01, table bookings"
+information:
+  notices: [{repo: bistro-web, id: privacy-page}]
+  text: "…"
+sensitive_data: [health, religious]
+```
+
+| Field | Meaning | Open item when |
+| --- | --- | --- |
+| `legal_basis_detail.balancing_test` | `interest`, `necessity`, `impact`, `safeguards` (all four required): the balancing test of legitimate interests (Art. 6(1)(f)). | `legal_basis` is `legitimate-interests` and it is absent. |
+| `legal_basis_detail.consent` | `collection`, `withdrawal` (both required): how consent is collected and withdrawn (Art. 7). | `legal_basis` is `consent` and it is absent. |
+| `legal_basis_detail.reference` | The contract, law, public task or vital interest the processing relies on. | `legal_basis` is `contract`, `legal-obligation`, `public-task` or `vital-interests` and it is absent. |
+| `dpia.required` | `yes`, `no` or `to-assess` (required when `dpia` is present). Quote `"yes"` and `"no"`. | `dpia` is absent, `required` is `to-assess`, or `required` is `yes` without `ref`. |
+| `dpia.criteria` | The EDPB criteria that apply: `evaluation`, `automated-decision`, `monitoring`, `sensitive`, `large-scale`, `matching`, `vulnerable`, `innovative`, `prevents-rights`. `[]` means none. | never |
+| `dpia.ref` | The DPIA document, when one exists. | see `required` |
+| `information.notices` | Notices of the manifests: `{repo: <repo>, id: <notice id>}`, or `{tool: <tool id>, id: <notice id>}` for a declared tool. Each must resolve to a `notices` entry of that service's manifest; an unresolved reference fails the generation, as an unresolved `data` does. | `information` is absent, or a notice it names has `kind: none`. |
+| `information.text` | Free text: how else the persons are told. `information` needs `notices` or `text`. | |
+| `sensitive_data` | `none`, `to-assess`, or the Art. 9 categories found: `racial-ethnic`, `political`, `religious`, `union`, `genetic`, `biometric`, `health`, `sex-life`, `criminal`. | absent or `to-assess`. |
+
+`legal_basis: not-applicable` expects no detail. A detail written for another legal basis than the processing's is ignored by the dossier, and the expected one is still open.
+
+A processing file with `spec_version: "0.1"` in a v0.2 compliance repo has none of these fields: each check, and its joint controllers, is an open item.
+
+The full list of open items (identity, Art. 30, DPO checks, AI features, controllers outside the register) and the action that closes each one are in [`templates/register/README.md`](../templates/register/README.md#v02-the-compliance-dossier).
 
 ## services/&lt;repo&gt;/sync.yaml
 
@@ -60,7 +113,7 @@ Written by the Action every time a repo sends its manifest after a merge.
 
 | Field | Type | Required | Meaning |
 | --- | --- | --- | --- |
-| `spec_version` | string | yes | `"0.1"`. |
+| `spec_version` | string | yes | `"0.1"` or `"0.2"`; the shape is the same. |
 | `repo` | string | yes | Repo name, equal to the folder name. |
 | `sha` | 40-hex SHA | yes | The commit of the repo whose manifest was sent. |
 | `received_at` | RFC 3339 date-time | yes | When the compliance repo received it. |
@@ -85,7 +138,7 @@ A manifest for something with no repo to scan: a hosted CRM, a payroll tool, a s
 Written by the generator each time it generates documents. It records, for each repo, the commit the generated documents are based on. The lag of the next sync is counted from it.
 
 ```yaml
-spec_version: "0.1"
+spec_version: "0.2"
 generated_at: "2026-03-11T08:00:00Z"
 repos:
   bistro-api:
@@ -96,7 +149,7 @@ repos:
 
 | Field | Type | Required | Meaning |
 | --- | --- | --- | --- |
-| `spec_version` | string | yes | `"0.1"`. |
+| `spec_version` | string | yes | `"0.1"` or `"0.2"`; the shape is the same. The v0.2 generator writes `"0.2"`. |
 | `generated_at` | RFC 3339 date-time | yes | When the documents were generated. |
 | `repos` | map | yes | Keyed by repo name (a name from `compliance.yaml`). Each value is `{sha}`. |
 | `repos.<name>.sha` | 40-hex SHA | yes | The `sha` of `services/<name>/sync.yaml` that was read to generate the documents. |

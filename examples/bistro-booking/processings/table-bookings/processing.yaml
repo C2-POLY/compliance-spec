@@ -1,17 +1,27 @@
-spec_version: "0.1"
+spec_version: "0.2"
 id: table-bookings
 name: Table bookings
 purpose: Take, confirm, remind and secure table bookings made by guests.
-controller: {name: Bistro Booking Group, contact: privacy@bistro-booking.example}
-dpo: {name: Data protection office, contact: dpo@bistro-booking.example}
+joint_controllers: []
 data_subjects: [restaurant guests]
 legal_basis: contract
+legal_basis_detail:
+  reference: "Booking terms accepted by the guest when booking a table, section 3; dietary notes are optional and asked with the guest's explicit consent (Art. 9(2)(a))"
+dpia:
+  required: "yes"
+  criteria: [evaluation, sensitive]
+  ref: "DPIA-2026-01, table bookings (dpia/table-bookings.pdf)"
+information:
+  notices:
+    - {repo: bistro-web, id: privacy-page}
+  text: The booking confirmation email repeats the link to the privacy page.
+sensitive_data: [health, religious]
 services:
   - repo: bistro-web
     data: [booking-form]
     recipients: []
   - repo: bistro-api
-    data: [guest-contact, booking-details, payment-reference, no-show-history]
+    data: [guest-contact, booking-details, payment-reference, no-show-history, request-metadata]
     recipients: [calendar-link, charge-deposit, mailrelay, paygate, send-email, send-sms, textflow-sms]
 security_measures:
   - {measure: Data encrypted in transit (TLS) and at rest, source: {kind: declared, ref: "docs/security.md"}}

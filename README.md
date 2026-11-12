@@ -2,7 +2,7 @@
 
 An open format to describe, repo by repo, what a software service does with personal data, so that GDPR and AI Act documentation can be generated from the code and the specs instead of being rebuilt by hand after deployment.
 
-> **Status: draft.** Nothing is stable yet. The first version of the format will be tagged `v0.1.0`.
+> **Status: draft.** Nothing is stable yet. Two versions of the format exist side by side: v0.1 (the records of processing) and v0.2 (a compliance dossier a DPO can review: organisation identity, DPO checks, AI Act classification). Every file declares its own `spec_version`; v0.1 files stay valid.
 
 ## What it covers
 
@@ -12,19 +12,19 @@ An open format to describe, repo by repo, what a software service does with pers
 - **JSON Schemas** for each of these files.
 - **A compliance step for `/topic`-style skills**: it asks targeted GDPR / AI Act questions at spec time, and only when a change triggers them.
 - **A skill to start from existing code**: it scans a repo, writes its first manifest, asks only what the code cannot tell and opens a pull request.
-- **A base template** for the records of processing activities (GDPR Art. 30).
+- **Register templates**: the records of processing activities (GDPR Art. 30) for v0.1, and for v0.2 a compliance dossier in English or French: the organisation's identity, the actions that close the open items, Art. 30 and the DPO checks per processing, the AI features, and what stays outside the register.
 
 ## Layout
 
 | Folder | Content |
 | --- | --- |
-| `spec/` | The format, in prose |
-| `schema/` | JSON Schemas, versioned by folder |
+| `spec/` | The format, in prose: [index](spec/README.md) |
+| `schema/` | JSON Schemas, versioned by folder: [`schema/v0.2`](schema/v0.2), [`schema/v0.1`](schema/v0.1) |
 | `skills/` | The compliance step for `/topic`: [`skills/compliance-step`](skills/compliance-step) (triggers, questions, scenarios); and the one-time first manifest of an existing repo: [`skills/compliance-init`](skills/compliance-init) (scan guide, findings, pull request, example) |
-| `templates/` | Document templates: [`templates/register`](templates/register) (records of processing, GDPR Art. 30(1): items, mapping, provenance, template) |
+| `templates/` | Document templates: [`templates/register`](templates/register) (v0.1 records of processing, GDPR Art. 30(1); v0.2 compliance dossier in English and French: mapping, provenance, open items, actions, translations, templates) |
 | `scripts/` | `validate.mjs` (check a file against its schema), `missing-services.mjs`, `check-triggers.mjs` (the compliance step's field paths exist in the schema) |
-| `tests/` | Fixtures (valid and invalid) and the test runner |
-| `examples/` | A complete example for a fictional restaurant booking app, « Bistro Booking » |
+| `tests/` | Fixtures (valid and invalid, per version), the v0.1 example (`tests/fixtures/v0.1/bistro-booking`) and the test runner |
+| `examples/` | A complete v0.2 example for a fictional restaurant booking app, « Bistro Booking » |
 
 ## Validate
 
@@ -32,7 +32,7 @@ Needs Node 24 or later.
 
 ```bash
 npm ci && npm test                      # schemas, fixtures, examples, scripts
-node scripts/validate.mjs <file>        # check one file; the schema is picked from the file name
+node scripts/validate.mjs <file>        # check one file; the schema is picked from the file name, the version from its spec_version
 node scripts/validate.mjs --schema manifest <file>
 node scripts/missing-services.mjs <compliance-repo-dir>
 ```

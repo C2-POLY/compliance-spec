@@ -1,0 +1,12 @@
+# expect: /legal_basis_detail/consent additionalProperties
+spec_version: "0.2"
+id: table-bookings
+name: Table bookings
+purpose: Take and confirm table bookings.
+data_subjects: [restaurant guests]
+legal_basis: contract
+services:
+  - repo: bistro-api
+source: {kind: declared, ref: operations team}
+legal_basis_detail:
+  consent: {collection: unticked box, withdrawal: link in every email, proof: logs}

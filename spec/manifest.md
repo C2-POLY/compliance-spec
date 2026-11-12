@@ -1,6 +1,8 @@
-# Manifest specification, v0.1
+# Manifest specification, v0.2
 
-> Status: draft. The format is versioned by `spec_version`; schemas are in [`schema/v0.1/`](../schema/v0.1/manifest.schema.json).
+> Status: draft. The format is versioned by `spec_version`; schemas are in [`schema/v0.2/`](../schema/v0.2/manifest.schema.json) and [`schema/v0.1/`](../schema/v0.1/manifest.schema.json).
+
+This page describes v0.2. Every field marked **(v0.2)** is new in v0.2 and rejected in a v0.1 manifest; everything else is the same in both versions. A v0.1 manifest (`spec_version: "0.1"`) stays valid against the v0.1 schema, and a v0.2 compliance repo may hold both (see [compliance-repo.md](compliance-repo.md#versions)). In a v0.1 manifest read by a v0.2 compliance repo, a missing v0.2 field is an open item of the dossier, never an error. [What changed in v0.2](#what-v02-changed) lists the changes.
 
 A **manifest** describes what one repo does with personal data. It lives at `.compliance/manifest.yaml` in the repo. An external tool without a repo (a hosted CRM, for example) gets a hand-written manifest in the compliance repo, under `declared/<tool>/manifest.yaml` (see [compliance-repo.md](compliance-repo.md)); it follows the same schema.
 
@@ -18,7 +20,7 @@ Conventions used below:
 
 | Field | Type | Required | Meaning |
 | --- | --- | --- | --- |
-| `spec_version` | string | yes | Always `"0.1"` for this version. |
+| `spec_version` | string | yes | `"0.2"` for this version (`"0.1"` for a v0.1 manifest). The validator picks the schema from it. |
 | `service` | object | yes | What the repo is. See [service](#service). |
 | `personal_data` | list | yes | The personal data the service handles. May be `[]`. |
 | `storage` | list | yes | Where that data rests, and for how long. May be `[]`. |
@@ -26,6 +28,7 @@ Conventions used below:
 | `outbound_flows` | list | yes | Data leaving the service towards a third party. May be `[]`. |
 | `automated_decisions` | list | yes | Decisions about persons taken by the service. May be `[]`. |
 | `ai_features` | list | yes | Features that use AI. May be `[]`. |
+| `notices` | list | no | **(v0.2)** Where the persons are told about the processing. See [notices](#notices-v02). |
 | `linked_files` | list of strings | no | Globs, relative to the repo root, of the files that make the manifest stale when they change. |
 
 The six lists are required, even empty: `processors: []` is a statement ("none"), whereas a missing list is an unanswered question.
@@ -34,7 +37,7 @@ The six lists are required, even empty: `processors: []` is a statement ("none")
 
 ## Provenance: `source`
 
-Every item (the `service` and each entry of the six lists) carries a `source`, so that a reviewer can check where a statement comes from.
+Every item (the `service`, each entry of the six lists and each notice) carries a `source`, so that a reviewer can check where a statement comes from.
 
 | Field | Type | Required | Meaning |
 | --- | --- | --- | --- |
@@ -59,6 +62,8 @@ When `service.components` is set, an item may name the component it belongs to w
 | `repo` | string `owner/name` | no | The repo. Absent for declared tools. |
 | `description` | string | yes | What the service does, in one or two sentences. |
 | `controller` | enum | yes | Who decides why and how the data is processed: `organisation`, `user-of-the-app` (a local app: the person using it), or `shared`. |
+| `controller_rationale` | string | no | **(v0.2)** Why the organisation is not (or not alone) the controller. Expected when `controller`, or the `controller` of any component, is not `organisation`; missing, it is an open item of the dossier. |
+| `privacy_by_design` | list of strings | no | **(v0.2)** Measures the organisation took in the design of the service (GDPR Art. 25): "notes never leave the device", "no account needed". |
 | `components` | list | no | For a repo holding several deliverables (API and worker, Mac app and iOS app...). |
 | `source` | source | yes | Provenance. |
 
@@ -68,6 +73,9 @@ When `service.components` is set, an item may name the component it belongs to w
 | --- | --- | --- | --- |
 | `id` | id | yes | Referenced by the `component` field of items. |
 | `kind` | string | yes | Free text, e.g. `web-api`, `background-worker`, `frontend`, `desktop-app`, `ios-app`. |
+| `controller` | enum | no | **(v0.2)** Same values as `service.controller`. Overrides `service.controller` for the items of this component: an offline app of a website, controlled by its user. |
+
+Component ids are unique within `components`.
 
 When `controller` is `user-of-the-app`, the organisation is not the controller of what the user processes locally: legal bases are `not-applicable`, and recipients reached with the user's own accounts are `outbound_flows`, not `processors`.
 
@@ -100,6 +108,7 @@ One entry per set of data collected for the same purpose.
 | `location` | Address, GPS, IP-derived location |
 | `usage` | Behaviour: pages viewed, booking history, timestamps, scores |
 | `professional` | Employer, role, work items |
+| `connection` | **(v0.2)** IP address, technical headers (user agent), device identifiers |
 | `health` | Health data (also special category data, Art. 9) |
 | `special` | Any other Art. 9 special category (religion, origin, orientation, biometrics...), or free text that may reveal one |
 | `credential` | Passwords, hashes, tokens, keys |
@@ -137,7 +146,8 @@ Processors **contracted by the organisation**, with a data processing agreement.
 | `name` | string | yes | Provider name. |
 | `service` | string | yes | What it does for us. |
 | `country` | ISO 3166-1 alpha-2 | yes | Where the processing happens (or the provider's seat when unknown). |
-| `dpa` | `yes` \| `no` \| `unknown` | yes | Whether a data processing agreement (Art. 28) is signed. Quote `"yes"` and `"no"` in YAML. |
+| `dpa` | `yes` \| `no` \| `unknown` | yes | Whether a data processing agreement (Art. 28) is signed. Quote `"yes"` and `"no"` in YAML. `no` and `unknown` are open items of the processings that use the processor. |
+| `dpa_ref` | string | no | **(v0.2)** Where the signed DPA is, or which standard terms of the provider apply: "PayGate data processing addendum, signed 2025-11-20". |
 | `transfer_outside_eu` | boolean | yes | Whether data goes outside the EU/EEA. |
 | `safeguard` | string | no | The transfer safeguard when `transfer_outside_eu` is true: "standard contractual clauses", "adequacy decision". |
 | `data` | list of ids | no | `personal_data` ids sent to the processor. |
@@ -155,7 +165,11 @@ Any movement of personal data from the service to a third party, whether a proce
 | `data` | list of ids | yes | `personal_data` ids sent. |
 | `purpose` | string | yes | Why it is sent. |
 | `account` | enum | yes | Whose account or contract is used: `organisation` (a contracted provider), `user` (the user's own account or tool), `none` (no account, e.g. a plain HTTP call). |
+| `processor` | id | no | **(v0.2)** The id of a processor of the same manifest: the flow goes to that processor. The reference must resolve. |
+| `safeguard` | string | no | **(v0.2)** The transfer safeguard of this flow, when it leaves the EU/EEA or goes to an unknown country. |
 | `source`, `linked_files` | | | |
+
+A flow with `processor` is the same recipient as that processor: the register lists it once, as the processor, with its contract. Its transfer uses the flow's own `safeguard`, else the processor's. A flow without `processor` whose `to.name` and `to.country` equal those of a processor of the same manifest is read the same way (the v0.1 rule).
 
 ## automated_decisions[]
 
@@ -181,16 +195,78 @@ Decisions about persons taken by the service (GDPR Art. 22). Content generated b
 | `interacts_with_persons` | boolean | yes | Whether persons interact with it directly (a chat assistant). |
 | `human_review` | boolean | yes | Whether a human checks the output before it is used or published. |
 | `marking` | string | no | How the person is told it is AI, or how the output is marked (AI Act Art. 50). Absent when nothing is done. |
+| `role` | enum | no | **(v0.2)** The organisation's AI Act role for this feature: `provider` (it develops the AI system or has it developed and puts it into service under its own name), `deployer` (it uses an AI system under its authority), or `to-assess`. |
+| `risk` | object | no | **(v0.2)** `level` (required): `prohibited` (Art. 5), `high` (Art. 6 and Annex III), `limited` (transparency obligations of Art. 50), `minimal`, or `to-assess`; `reason` (string, optional): why that level. |
+| `obligations` | list | no | **(v0.2)** The AI Act obligations of the feature and their status: `{id, status, ref}`. See below. |
 | `data` | list of ids | no | `personal_data` ids the feature uses. |
+| `source`, `linked_files` | | | |
+
+`obligations[]` **(v0.2)**:
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `id` | enum | yes | One of the obligation ids below. Unique within the list. |
+| `status` | `done` \| `open` \| `not-applicable` | yes | `open` is an open item. `not-applicable` states that a person checked that the obligation does not apply. |
+| `ref` | string | no | Where it is done: a document, a screen, a file. |
+
+Obligation ids, with their article and when the dossier **expects** them. An expected obligation that is not listed is an open item; `not-applicable` counts as listed.
+
+| Id | AI Act | Applies to | Expected when |
+| --- | --- | --- | --- |
+| `art4-ai-literacy` | Art. 4, AI literacy | providers and deployers | always |
+| `art50-interaction` | Art. 50(1), persons told they interact with an AI system | providers | `interacts_with_persons: true` |
+| `art50-synthetic-content` | Art. 50(2), generated content marked as such | providers | `generates_content: true` |
+| `art50-emotion-biometric` | Art. 50(3), persons told of emotion recognition or biometric categorisation | deployers | never computed: listed by a person when it applies |
+| `art50-deepfake` | Art. 50(4), deep fakes disclosed | deployers | never computed: listed by a person when it applies |
+| `art9-risk-management` | Art. 9, risk management system | high risk | `risk.level: high` |
+| `art10-data-governance` | Art. 10, data and data governance | high risk | `risk.level: high` |
+| `art11-technical-documentation` | Art. 11, technical documentation | high risk | `risk.level: high` |
+| `art12-logging` | Art. 12, record-keeping | high risk | `risk.level: high` |
+| `art13-transparency` | Art. 13, transparency and instructions for use | high risk | `risk.level: high` |
+| `art14-human-oversight` | Art. 14, human oversight | high risk | `risk.level: high` |
+| `art15-accuracy-robustness` | Art. 15, accuracy, robustness and cybersecurity | high risk | `risk.level: high` |
+| `art26-deployer-duties` | Art. 26, obligations of deployers | deployers of high risk | `risk.level: high` and `role: deployer` |
+| `art27-fria` | Art. 27, fundamental rights impact assessment | deployers of high risk | `risk.level: high` and `role: deployer` |
+
+The `art50-*` obligations follow the feature's flags, not its level: a `limited` chat assistant brings `art50-interaction` and, when it generates text, `art50-synthetic-content`. A deployer whose provider meets a provider obligation lists it as `not-applicable` with the provider's documentation in `ref`.
+
+Open items of an AI feature: `role` absent or `to-assess`; `risk` absent or `level: to-assess`; `level: prohibited` (the feature is reviewed before anything else); an obligation with `status: open`; an expected obligation that is not listed.
+
+## notices[] (v0.2)
+
+Where the persons are told about the processing (GDPR Art. 13 and 14). A processing file points to them with `information.notices` (see [compliance-repo.md](compliance-repo.md)).
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `id` | id | yes | Referenced by processings as `{repo: <repo>, id: <id>}` or `{tool: <tool>, id: <id>}`. |
+| `component` | id | no | Owning component. |
+| `kind` | enum | yes | `page` (a privacy page), `screen` (an in-app screen), `banner` (a consent or cookie banner), `email`, or `none` (a person states that nothing tells the persons; the dossier keeps it open). |
+| `ref` | string | yes | A URL, a file path or a screen name. |
 | `source`, `linked_files` | | | |
 
 ## Validation
 
-`node scripts/validate.mjs <manifest.yaml>` checks the schema, and two rules JSON Schema cannot express: ids are unique within a list, and every `data` and `component` reference resolves.
+`node scripts/validate.mjs <manifest.yaml>` picks the schema from `spec_version` and checks it, and the rules JSON Schema cannot express: ids are unique within a list (and, in v0.2, within `service.components`, `notices` and each feature's `obligations`), and every `data` and `component` reference resolves (in v0.2, also `outbound_flows[].processor`).
 
 ## Decisions
 
 This section records why the format is what it is.
+
+### What v0.2 changed
+
+v0.2 makes the compliance repo a dossier a DPO can review ([design](https://github.com/C2-POLY/compliance-spec/issues/28)). In the manifest:
+
+| Need | Change in v0.2 |
+| --- | --- |
+| IP addresses and device identifiers had no category. | Category `connection`. |
+| A flow to a processor was listed twice in the register, and its transfer safeguard was found by name. | `outbound_flows[].processor` (checked) and `outbound_flows[].safeguard`. |
+| The register showed no contract. | `processors[].dpa_ref`; `dpa: no` or `unknown` becomes an open item. |
+| One repo can hold a component its user controls (an offline app). | `service.components[].controller`, `service.controller_rationale`. |
+| Art. 25 had no place. | `service.privacy_by_design`. |
+| Art. 13 and 14: how persons are told. | Top-level `notices`, referenced from processings. |
+| The AI Act depends on the role and the risk level. | `ai_features[].role`, `.risk`, `.obligations` with fixed obligation ids. |
+
+Every new field is optional, so a v0.1 manifest only needs `spec_version: "0.2"` to become a v0.2 one; what it lacks shows as open items.
 
 ### What the v0 trial changed
 
@@ -222,10 +298,10 @@ Smaller changes: `data` in flows and storage is a list of `personal_data` ids (c
 
 ## Worked example
 
-Bistro Booking is a fictional restaurant booking app. This manifest is for its `bistro-api` repo: a web API and a background worker (two components). The web frontend has its own manifest in the [complete example](../examples/bistro-booking/). This example is also [`tests/fixtures/valid/manifest/bistro-api.yaml`](../tests/fixtures/valid/manifest/bistro-api.yaml); a test keeps the three copies identical.
+Bistro Booking is a fictional restaurant booking app. This manifest is for its `bistro-api` repo: a web API and a background worker (two components). The web frontend has its own manifest in the [complete example](../examples/bistro-booking/). This example is the v0.2 manifest of [`examples/bistro-booking/services/bistro-api/manifest.yaml`](../examples/bistro-booking/services/bistro-api/manifest.yaml); a test keeps the two copies identical. Its v0.1 form is [`tests/fixtures/valid/manifest/bistro-api.yaml`](../tests/fixtures/valid/manifest/bistro-api.yaml), kept with the v0.1 example in [`tests/fixtures/v0.1/bistro-booking/`](../tests/fixtures/v0.1/bistro-booking/).
 
 ```yaml
-spec_version: "0.1"
+spec_version: "0.2"
 
 service:
   name: Bistro Booking API
@@ -295,6 +371,17 @@ personal_data:
     source: {kind: code, ref: "src/auth/staff.ts"}
     linked_files: ["src/auth/**"]
 
+  - id: request-metadata
+    component: api
+    subjects: [restaurant guests]
+    fields:
+      - {name: IP address of the booking request, category: connection}
+      - {name: browser user agent, category: connection}
+    purpose: protect the booking API against abuse and fake bookings
+    legal_basis: legitimate-interests
+    source: {kind: code, ref: "src/middleware/rate-limit.ts"}
+    linked_files: ["src/middleware/**"]
+
 storage:
   - id: main-db
     kind: database
@@ -314,7 +401,7 @@ storage:
   - id: app-logs
     kind: log
     location: log service of the hosting provider, EU region
-    data: [guest-contact]
+    data: [guest-contact, request-metadata]
     retention: {duration: P30D, trigger: log rotation}
     source: {kind: declared, ref: "docs/operations.md"}
 
@@ -325,6 +412,7 @@ processors:
     service: SMS booking reminders
     country: NL
     dpa: "yes"
+    dpa_ref: "TextFlow SMS data processing agreement, signed 2025-09-02"
     transfer_outside_eu: false
     data: [guest-contact]
     source: {kind: code, ref: "src/notifications/sms.ts"}
@@ -335,6 +423,7 @@ processors:
     service: transactional email (confirmations, reminders)
     country: FR
     dpa: "yes"
+    dpa_ref: "MailRelay standard data processing terms, version 2025"
     transfer_outside_eu: false
     data: [guest-contact, booking-details]
     source: {kind: code, ref: "src/notifications/email.ts"}
@@ -345,6 +434,7 @@ processors:
     service: card deposits
     country: US
     dpa: "yes"
+    dpa_ref: "PayGate data processing addendum, signed 2025-11-20"
     transfer_outside_eu: true
     safeguard: standard contractual clauses
     data: [guest-contact, payment-reference]
@@ -373,6 +463,7 @@ outbound_flows:
     data: [guest-contact, payment-reference]
     purpose: hold and charge the booking deposit
     account: organisation
+    processor: paygate
     source: {kind: code, ref: "src/payments/deposit.ts"}
 
   - id: calendar-link
@@ -381,6 +472,7 @@ outbound_flows:
     data: [booking-details]
     purpose: let the guest add the booking to their own calendar
     account: user
+    safeguard: "The guest adds the booking to a calendar of their choice with their own account; the service only offers the link."
     source: {kind: code, ref: "src/bookings/calendar.ts"}
 
 automated_decisions:
@@ -400,6 +492,10 @@ ai_features:
     interacts_with_persons: false
     human_review: true
     marking: Internal score, never shown to guests; the guest is told that a deposit may be asked.
+    role: provider
+    risk: {level: limited, reason: "The score only asks for a deposit that a manager can waive; it is not an Annex III use."}
+    obligations:
+      - {id: art4-ai-literacy, status: open}
     data: [no-show-history]
     source: {kind: spec, ref: "https://github.com/bistro-org/bistro-api/issues/42"}
     linked_files: ["src/scoring/**"]
@@ -411,6 +507,11 @@ ai_features:
     interacts_with_persons: true
     human_review: false
     marking: The chat window starts with "You are talking to an AI assistant".
+    role: to-assess
+    risk: {level: limited, reason: "A chat assistant that talks to guests: transparency obligations only."}
+    obligations:
+      - {id: art4-ai-literacy, status: done, ref: "AI training of the support team, 2026"}
+      - {id: art50-interaction, status: done, ref: "The chat window starts with \"You are talking to an AI assistant\"."}
     source: {kind: code, ref: "src/assistant/chat.ts"}
     linked_files: ["src/assistant/**"]
 
@@ -421,6 +522,7 @@ linked_files:
   - "src/scoring/**"
   - "src/auth/**"
   - "src/assistant/**"
+  - "src/middleware/**"
   - "db/migrations/**"
   - "package.json"
 ```

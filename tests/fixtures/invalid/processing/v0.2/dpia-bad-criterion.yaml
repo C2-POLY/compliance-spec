@@ -1,0 +1,11 @@
+# expect: /dpia/criteria/0 enum
+spec_version: "0.2"
+id: table-bookings
+name: Table bookings
+purpose: Take and confirm table bookings.
+data_subjects: [restaurant guests]
+legal_basis: contract
+services:
+  - repo: bistro-api
+source: {kind: declared, ref: operations team}
+dpia: {required: "yes", criteria: [profiling]}

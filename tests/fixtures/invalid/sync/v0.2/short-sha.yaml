@@ -1,0 +1,6 @@
+# expect: /sha pattern
+spec_version: "0.2"
+repo: bistro-api
+sha: 7c1e4f9
+received_at: "2026-03-12T09:41:07Z"
+lag: {status: unknown}

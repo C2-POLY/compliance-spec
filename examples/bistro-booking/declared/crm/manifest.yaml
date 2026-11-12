@@ -2,8 +2,8 @@ spec_version: "0.1"
 
 service:
   name: ClientDesk CRM
-  description: "Hosted customer relationship tool used by the marketing team to send the newsletter. Declared by hand, there is no repo."
-  controller: organisation
+  description: "Hosted customer relationship tool used by the marketing team to send the newsletter, which partner restaurants co-edit: they choose the offers sent to their guests. Declared by hand, there is no repo."
+  controller: shared
   source: {kind: declared, ref: "marketing team"}
 
 personal_data:
@@ -13,6 +13,7 @@ personal_data:
       - {name: guest name, category: identity}
       - {name: guest email, category: contact}
       - {name: subscription date and consent record, category: usage}
+      - {name: campaign notes (free text), category: unknown}
     purpose: send the monthly newsletter and special offers
     legal_basis: consent
     source: {kind: declared, ref: "marketing team"}
@@ -25,6 +26,13 @@ storage:
     retention: {duration: P2Y, trigger: after the last interaction with the contact}
     source: {kind: declared, ref: "marketing team"}
 
+  - id: campaign-exports
+    kind: file
+    location: CSV exports of the contact list on the marketing team's shared drive
+    data: [newsletter-contacts]
+    retention: {duration: unknown}
+    source: {kind: declared, ref: "marketing team"}
+
 processors:
   - id: clientdesk
     name: ClientDesk CRM
@@ -32,6 +40,15 @@ processors:
     country: IE
     dpa: "yes"
     transfer_outside_eu: false
+    data: [newsletter-contacts]
+    source: {kind: declared, ref: "marketing team"}
+
+  - id: bulkletter
+    name: BulkLetter
+    service: delivery of the newsletter to large lists
+    country: US
+    dpa: "no"
+    transfer_outside_eu: true
     data: [newsletter-contacts]
     source: {kind: declared, ref: "marketing team"}
 

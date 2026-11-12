@@ -1,0 +1,27 @@
+spec_version: "0.2"
+id: table-bookings
+name: Table bookings
+purpose: Take and confirm table bookings.
+data_subjects: [restaurant guests]
+legal_basis: contract
+services:
+  - repo: bistro-api
+source: {kind: declared, ref: operations team}
+controller: {name: Bistro Booking Group, contact: privacy@bistro-booking.example}
+dpo: {name: Data protection office, contact: dpo@bistro-booking.example}
+joint_controllers:
+  - {name: Partner restaurant, contact: owner@partner.example, arrangement: joint controller agreement of 2026-02-01}
+legal_basis_detail:
+  reference: Booking terms, section 3
+  balancing_test: {interest: fraud prevention, necessity: no lighter means, impact: low, safeguards: manual review}
+  consent: {collection: unticked box, withdrawal: link in every email}
+dpia:
+  required: "yes"
+  criteria: [evaluation, sensitive]
+  ref: DPIA-2026-01
+information:
+  notices:
+    - {repo: bistro-web, id: privacy-page}
+    - {tool: crm, id: signup-form}
+  text: The confirmation email links to the privacy page.
+sensitive_data: [health, religious]

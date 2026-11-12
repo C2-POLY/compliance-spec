@@ -1,0 +1,7 @@
+spec_version: "0.2"
+organisation:
+  name: Bistro Booking Group
+  dpo: {designated: false, reason: no large-scale monitoring and no special categories as a core activity}
+  representative: {required: true, name: EU Representative Office, contact: rep@bistro-booking.example}
+repos:
+  - {name: bistro-api, url: "https://github.com/bistro-org/bistro-api", owner: platform team, expected_to_send: true}

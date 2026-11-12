@@ -2,11 +2,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
-import { SCHEMAS, schemaFor, validateFile } from '../scripts/validate.mjs';
+import { SCHEMAS, VERSIONS, schemaFor, validateFile, versionOf } from '../scripts/validate.mjs';
 import { orphans } from '../scripts/check-triggers.mjs';
 
 const root = join(fileURLToPath(import.meta.url), '..', '..');
@@ -39,10 +40,14 @@ for (const schema of SCHEMAS) {
   }
 }
 
-test('every schema has at least one valid and one invalid fixture', () => {
+const versionOfFile = (file) => versionOf(parse(readFileSync(file, 'utf8')));
+
+test('every schema has at least one valid and one invalid fixture in each version', () => {
   for (const schema of SCHEMAS) {
-    assert.ok(yamlFiles(join(fixtures, 'valid', schema)).length > 0, `no valid fixture for ${schema}`);
-    assert.ok(yamlFiles(join(fixtures, 'invalid', schema)).length > 0, `no invalid fixture for ${schema}`);
+    for (const version of VERSIONS) {
+      assert.ok(yamlFiles(join(fixtures, 'valid', schema)).some((f) => versionOfFile(f) === version), `no valid ${version} fixture for ${schema}`);
+      assert.ok(yamlFiles(join(fixtures, 'invalid', schema)).some((f) => versionOfFile(f) === version), `no invalid ${version} fixture for ${schema}`);
+    }
   }
   assert.ok(yamlFiles(join(fixtures, 'invalid', 'manifest')).length >= 3);
 });
@@ -54,21 +59,61 @@ for (const file of yamlFiles(join(root, 'examples'))) {
   });
 }
 
-test('schema $id matches the published URL', () => {
-  for (const name of SCHEMAS) {
-    const schema = JSON.parse(readFileSync(join(root, 'schema', 'v0.1', `${name}.schema.json`), 'utf8'));
-    assert.equal(schema.$id, `https://raw.githubusercontent.com/C2-POLY/compliance-spec/v0.1.0/schema/v0.1/${name}.schema.json`);
-    assert.equal(schema.$schema, 'https://json-schema.org/draft/2020-12/schema');
+// The v0.1 example, kept as it was before the example moved to v0.2.
+const v01Dir = join(fixtures, 'v0.1', 'bistro-booking');
+
+for (const file of yamlFiles(v01Dir)) {
+  test(`v0.1 example ${rel(file)} is valid as v0.1`, () => {
+    assert.equal(parse(readFileSync(file, 'utf8')).spec_version, '0.1');
+    assert.ok(schemaFor(rel(file)));
+    assert.deepEqual(validateFile(file), []);
+  });
+}
+
+test('the v0.1 example keeps every file, including its register and anchors', () => {
+  for (const f of ['compliance.yaml', 'anchors.yaml', 'documents/register.md', 'declared/crm/manifest.yaml',
+    'processings/marketing-emails/processing.yaml', 'processings/table-bookings/processing.yaml',
+    'services/bistro-api/manifest.yaml', 'services/bistro-api/sync.yaml', 'services/bistro-web/manifest.yaml', 'services/bistro-web/sync.yaml']) {
+    assert.ok(existsSync(join(v01Dir, f)), f);
   }
 });
 
-test('the manifest spec example is the bistro-api fixture and the bistro-api example', () => {
-  const fixture = readFileSync(join(fixtures, 'valid', 'manifest', 'bistro-api.yaml'), 'utf8');
+test('schema $id matches the published URL, for each version', () => {
+  for (const version of VERSIONS) {
+    for (const name of SCHEMAS) {
+      const schema = JSON.parse(readFileSync(join(root, 'schema', `v${version}`, `${name}.schema.json`), 'utf8'));
+      assert.equal(schema.$id, `https://raw.githubusercontent.com/C2-POLY/compliance-spec/v${version}.0/schema/v${version}/${name}.schema.json`);
+      assert.equal(schema.$schema, 'https://json-schema.org/draft/2020-12/schema');
+      assert.deepEqual(schema.properties.spec_version, { const: version });
+    }
+  }
+});
+
+test('the manifest spec example is the v0.2 bistro-api example; the v0.1 fixture is the v0.1 bistro-api example', () => {
   const example = readFileSync(join(root, 'examples', 'bistro-booking', 'services', 'bistro-api', 'manifest.yaml'), 'utf8');
-  assert.equal(example, fixture);
   const spec = readFileSync(join(root, 'spec', 'manifest.md'), 'utf8');
   const block = spec.split('## Worked example')[1]?.match(/```yaml\n([\s\S]*?)```/)?.[1];
-  assert.equal(block, fixture);
+  assert.equal(block, example);
+  assert.equal(parse(example).spec_version, '0.2');
+  const fixture = readFileSync(join(fixtures, 'valid', 'manifest', 'bistro-api.yaml'), 'utf8');
+  assert.equal(readFileSync(join(v01Dir, 'services', 'bistro-api', 'manifest.yaml'), 'utf8'), fixture);
+});
+
+test('the validator picks the schema from the file\'s own spec_version', () => {
+  const tmpDir = mkdtempSync(join(tmpdir(), 'compliance-version-'));
+  const v02 = readFileSync(join(fixtures, 'valid', 'manifest', 'v0.2', 'all-new-fields.yaml'), 'utf8');
+  const asV01 = join(tmpDir, 'manifest.yaml');
+  writeFileSync(asV01, v02.replace('spec_version: "0.2"', 'spec_version: "0.1"'));
+  const errors = validateFile(asV01);
+  assert.ok(errors.some((e) => e.keyword === 'additionalProperties'), 'v0.2 fields are rejected in a v0.1 file');
+  assert.ok(errors.some((e) => e.instancePath === '/personal_data/0/fields/1/category' && e.keyword === 'enum'), 'connection is a v0.2 category');
+});
+
+test('validate.mjs CLI checks a v0.1 and a v0.2 file in one run', () => {
+  const result = spawnSync(process.execPath, [join(root, 'scripts', 'validate.mjs'),
+    join(v01Dir, 'compliance.yaml'), join(root, 'examples', 'bistro-booking', 'compliance.yaml')], { encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stdout);
+  assert.equal(result.stdout.match(/^ok {4}/gm).length, 2);
 });
 
 const missingServices = (dir) =>
@@ -81,10 +126,12 @@ test('missing-services reports the repo without a services folder and exits 1', 
   assert.doesNotMatch(result.stdout, /bistro-api|bistro-analytics/);
 });
 
-test('missing-services exits 0 on the Bistro Booking example', () => {
-  const result = missingServices(join(root, 'examples', 'bistro-booking'));
-  assert.equal(result.status, 0);
-  assert.equal(result.stdout, '');
+test('missing-services exits 0 on the Bistro Booking examples, v0.2 and v0.1', () => {
+  for (const dir of [join(root, 'examples', 'bistro-booking'), v01Dir]) {
+    const result = missingServices(dir);
+    assert.equal(result.status, 0);
+    assert.equal(result.stdout, '');
+  }
 });
 
 // Compliance step (skills/compliance-step)
@@ -92,7 +139,8 @@ const stepDir = join(root, 'skills', 'compliance-step');
 const manifestSchema = JSON.parse(readFileSync(join(root, 'schema', 'v0.1', 'manifest.schema.json'), 'utf8'));
 const triggersMapping = parse(readFileSync(join(stepDir, 'triggers.yaml'), 'utf8'));
 const triggerQuestions = new Map(triggersMapping.triggers.flatMap((t) => t.questions.map((q) => [q.id, { ...q, trigger: t.id }])));
-const baseManifestFile = join(root, 'examples', 'bistro-booking', 'services', 'bistro-api', 'manifest.yaml');
+// The compliance-step scenarios start from the v0.1 bistro-api manifest, kept in the v0.1 example.
+const baseManifestFile = join(v01Dir, 'services', 'bistro-api', 'manifest.yaml');
 const baseManifest = parse(readFileSync(baseManifestFile, 'utf8'));
 const frontMatter = (file) => parse(readFileSync(file, 'utf8').match(/^---\n([\s\S]*?)\n---/)[1]);
 const scenarios = readdirSync(join(stepDir, 'scenarios')).sort();
@@ -177,8 +225,8 @@ for (const name of ['01-guest-phone', '02-sms-provider']) {
   });
 }
 
-// Register template (templates/register)
-const exampleDir = join(root, 'examples', 'bistro-booking');
+// Register template v0.1 (templates/register/register.md.tmpl), checked on the v0.1 example
+const exampleDir = v01Dir;
 const registerFile = join(exampleDir, 'documents', 'register.md');
 const registerText = existsSync(registerFile) ? readFileSync(registerFile, 'utf8') : '';
 const registerHead = registerText.match(/^---\n([\s\S]*?)\n---\n/);
@@ -254,9 +302,243 @@ test('register: the Open items section comes first and its count is the front ma
   assert.doesNotMatch(open[2], /Joint controller|Representative/);
 });
 
+// The v0.2 Bistro Booking example (examples/bistro-booking)
+const v02Dir = join(root, 'examples', 'bistro-booking');
+const readYaml = (...parts) => parse(readFileSync(join(...parts), 'utf8'));
+const v02Compliance = readYaml(v02Dir, 'compliance.yaml');
+const v02Processings = readdirSync(join(v02Dir, 'processings')).sort().map((id) => readYaml(v02Dir, 'processings', id, 'processing.yaml'));
+const manifestOf = (entry) => entry.repo !== undefined
+  ? readYaml(v02Dir, 'services', entry.repo, 'manifest.yaml')
+  : readYaml(v02Dir, v02Compliance.declared_tools.find((t) => t.id === entry.tool).path);
+const v02Manifests = [
+  ...v02Compliance.repos.filter((r) => existsSync(join(v02Dir, 'services', r.name))).map((r) => ({ label: r.name, manifest: manifestOf({ repo: r.name }) })),
+  ...(v02Compliance.declared_tools ?? []).map((t) => ({ label: t.id, manifest: manifestOf({ tool: t.id }) })),
+];
+
+test('v0.2 example: compliance.yaml is v0.2, and the repo mixes v0.1 and v0.2 files', () => {
+  assert.equal(v02Compliance.spec_version, '0.2');
+  const versions = new Set(yamlFiles(v02Dir).map((f) => parse(readFileSync(f, 'utf8')).spec_version));
+  assert.deepEqual([...versions].sort(), ['0.1', '0.2']);
+});
+
+test('v0.2 example: every service entry, data, recipient and notice of a processing resolves', () => {
+  for (const p of v02Processings) {
+    for (const entry of p.services) {
+      if (entry.repo !== undefined) assert.ok(v02Compliance.repos.some((r) => r.name === entry.repo), `${p.id}: ${entry.repo}`);
+      else assert.ok(v02Compliance.declared_tools.some((t) => t.id === entry.tool), `${p.id}: ${entry.tool}`);
+      const m = manifestOf(entry);
+      for (const id of entry.data ?? []) assert.ok(m.personal_data.some((d) => d.id === id), `${p.id}: data ${id}`);
+      for (const id of entry.recipients ?? []) assert.ok([...m.processors, ...m.outbound_flows].some((r) => r.id === id), `${p.id}: recipient ${id}`);
+    }
+    for (const n of p.information?.notices ?? []) {
+      assert.ok((manifestOf(n).notices ?? []).some((x) => x.id === n.id), `${p.id}: notice ${n.repo ?? n.tool}/${n.id}`);
+    }
+  }
+});
+
+test('v0.2 example: it shows what the design asks for', () => {
+  const org = v02Compliance.organisation;
+  assert.ok(org.controller.legal_name && org.controller.contact && org.privacy_contact, 'identity complete');
+  assert.equal(org.dpo.designated, true);
+  assert.equal(org.representative.required, 'unknown');
+  const byId = Object.fromEntries(v02Processings.map((p) => [p.id, p]));
+  const tb = byId['table-bookings'];
+  assert.ok(Array.isArray(tb.joint_controllers) && tb.legal_basis_detail.reference && tb.dpia.ref && tb.information.notices.length > 0);
+  assert.ok(Array.isArray(tb.sensitive_data), 'table-bookings fills every DPO check');
+  const me = byId['marketing-emails'];
+  assert.equal(me.legal_basis_detail, undefined);
+  assert.ok([undefined, 'to-assess'].includes(me.dpia?.required));
+  assert.ok([undefined, 'to-assess'].includes(me.sensitive_data));
+  const all = v02Manifests.map((x) => x.manifest);
+  assert.ok(all.some((m) => m.processors.some((r) => r.dpa === 'no')), 'a processor with dpa: no');
+  assert.ok(all.some((m) => m.outbound_flows.some((f) => f.processor)), 'a flow linked to its processor');
+  assert.ok(all.some((m) => (m.notices ?? []).length > 0), 'a notice');
+  const noShow = all.flatMap((m) => m.ai_features).find((f) => f.id === 'no-show-prediction');
+  assert.equal(noShow.risk.level, 'limited');
+  assert.equal(noShow.obligations.filter((o) => o.status === 'open').length, 1);
+  const web = manifestOf({ repo: 'bistro-web' });
+  assert.ok(web.service.components.some((c) => c.controller === 'user-of-the-app') && web.service.controller_rationale);
+  assert.ok(all.some((m) => m.service.controller !== 'organisation' && !m.service.controller_rationale), 'a missing controller rationale');
+});
+
+// Register template v0.2 (templates/register/register.<language>.md.tmpl)
+const registerDir = join(root, 'templates', 'register');
+const tmplText = (language) => readFileSync(join(registerDir, `register.${language}.md.tmpl`), 'utf8');
+const tagsOf = (text) => text.match(/\{\{[^}]*\}\}/g);
+const registerReadme = readFileSync(join(registerDir, 'README.md'), 'utf8');
+const v02Rules = registerReadme.split('\n## v0.2: the compliance dossier\n')[1] ?? '';
+const designActions = {
+  'organisation-identity': 'organisation', 'organisation-dpo': 'organisation', 'organisation-representative': 'organisation',
+  'joint-controllers': 'organisation', 'personal-data': 'developer', 'transfer-safeguards': 'developer',
+  'processor-contracts': 'organisation', retention: 'dpo', 'security-measures': 'developer', 'legal-basis-detail': 'dpo',
+  dpia: 'dpo', information: 'organisation', 'sensitive-data': 'dpo', 'ai-classification': 'dpo', 'ai-obligations': 'developer',
+  'controller-rationale': 'dpo',
+};
+const ruleRows = (re) => [...v02Rules.matchAll(re)];
+const actionRules = Object.fromEntries(ruleRows(/^\| `([a-z-]+)` \| (organisation|dpo|developer) \| ([^|`]+?) \| ([^|`]+?) \|$/gm)
+  .map(([, id, role, en, fr]) => [id, { role, en, fr }]));
+const roleLabels = Object.fromEntries(ruleRows(/^\| `(organisation|dpo|developer)` \| ([^|`]+?) \| ([^|`]+?) \|$/gm).map(([, role, en, fr]) => [role, { en, fr }]));
+const rowLabels = (table) => ruleRows(/^\| (Organisation|Art\. 30|DPO checks) \| ([^|`]+?) \| ([^|`]+?) \|$/gm)
+  .filter(([, t]) => t === table).map(([, , en, fr]) => ({ en, fr }));
+const placeLabels = Object.fromEntries(ruleRows(/^\| (Organisation|AI features|Outside the register) \| `([^`]+)` \| `([^`]+)` \|$/gm).map(([, place, en, fr]) => [place, { en, fr }]));
+const fixedStrings = Object.fromEntries(ruleRows(/^\| ([a-zA-Z ]+) \| `([^`]+)` \| `([^`]+)` \|$/gm).map(([, key, en, fr]) => [key, { en, fr }]));
+
+test('register v0.2: the English and French templates exist, are balanced and have the same structure', () => {
+  const en = tmplText('en');
+  const fr = tmplText('fr');
+  for (const t of [en, fr]) assert.equal(t.match(/\{\{#each /g).length, t.match(/\{\{\/each\}\}/g).length);
+  assert.deepEqual(tagsOf(fr), tagsOf(en));
+  assert.equal(fr.split('\n').length, en.split('\n').length);
+  const enLines = en.split('\n');
+  fr.split('\n').forEach((line, i) => {
+    if (/\{\{/.test(line) || /^(---|)$/.test(line) || /^\| (---|\s)/.test(line)) assert.equal(line.replace(/[^{}|]/g, ''), enLines[i].replace(/[^{}|]/g, ''), `line ${i + 1}`);
+  });
+  assert.match(en, /does not certify compliance/);
+  assert.match(fr, /ne certifie pas la conformité/);
+  assert.ok(existsSync(join(registerDir, 'register.md.tmpl')), 'the v0.1 template stays');
+});
+
+test('register v0.2: the rules list the 16 actions of the design with their role and both labels', () => {
+  assert.ok(v02Rules, 'a "## v0.2: the compliance dossier" part');
+  assert.deepEqual(Object.fromEntries(Object.entries(actionRules).map(([id, a]) => [id, a.role])), designActions);
+  for (const [id, a] of Object.entries(actionRules)) assert.ok(a.en && a.fr && a.en !== a.fr, id);
+  assert.deepEqual(Object.keys(roleLabels), ['organisation', 'dpo', 'developer']);
+  assert.equal(rowLabels('Organisation').length, 4);
+  assert.equal(rowLabels('Art. 30').length, 11);
+  assert.deepEqual(rowLabels('Art. 30').map((l) => l.en), itemLabels);
+  assert.equal(rowLabels('DPO checks').length, 6);
+  assert.deepEqual(Object.keys(placeLabels), ['Organisation', 'AI features', 'Outside the register']);
+  assert.equal(fixedStrings['to complete'].fr, 'À compléter');
+  assert.equal(fixedStrings['none found'].fr, 'Aucun identifié dans les sources');
+  assert.match(registerReadme, /\n## v0\.1: the records of processing\n/);
+});
+
+// The golden files are generated by compliance-action and copied in; until they are, these tests are not defined.
+const goldens = [['en', join(v02Dir, 'documents', 'register.md')], ['fr', join(v02Dir, 'documents', 'register.fr.md')]];
+const cellsOf = (line) => line.split(/(?<!\\)\|/).slice(1, -1).map((c) => c.trim());
+const tableAfter = (text, heading) => {
+  const start = text.indexOf(`${heading}\n`);
+  assert.ok(start >= 0, `missing ${heading}`);
+  const lines = text.slice(start).split('\n');
+  const first = lines.findIndex((l) => l.startsWith('| '));
+  const rows = [];
+  for (const l of lines.slice(first + 2)) { if (!l.startsWith('|')) break; rows.push(cellsOf(l)); }
+  return rows;
+};
+const roleOrder = ['organisation', 'dpo', 'developer'];
+
+for (const [language, file] of goldens) {
+  if (!existsSync(file)) continue;
+  const text = readFileSync(file, 'utf8');
+  const tmpl = tmplText(language);
+  const t = (key) => fixedStrings[key][language];
+  const placeholders = [t('to complete'), t('none found'), t('not expected')];
+  const headings = tmpl.match(/^## (?!\{).+$/gm);
+  const subheadings = tmpl.match(/^### .+$/gm);
+  const head = parse(text.match(/^---\n([\s\S]*?)\n---\n/)[1]);
+
+  test(`register v0.2 ${language}: front matter, anchors and the fixed text of the template`, () => {
+    const anchors = parse(readFileSync(join(v02Dir, 'anchors.yaml'), 'utf8'));
+    assert.equal(head.spec_version, '0.2');
+    assert.equal(head.language, language);
+    assert.equal(head.generated_at, anchors.generated_at);
+    assert.deepEqual(head.anchors, Object.fromEntries(Object.entries(anchors.repos).map(([repo, { sha }]) => [repo, sha])));
+    for (const [repo, sha] of Object.entries(head.anchors)) assert.equal(sha, readYaml(v02Dir, 'services', repo, 'sync.yaml').sha, repo);
+    let at = 0;
+    for (const line of tmpl.split('\n').filter((l) => l && !l.includes('{{'))) {
+      const found = `\n${text}`.indexOf(`\n${line}\n`, at);
+      assert.ok(found >= 0, `template line missing or out of order: ${line}`);
+      at = found + 1;
+    }
+    assert.ok(text.endsWith('\n') && !text.endsWith('\n\n') && !/[ \t]$/m.test(text));
+  });
+
+  test(`register v0.2 ${language}: sections in order, one per processing sorted by id`, () => {
+    const processingHeadings = v02Processings.map((p) => `## ${p.name} (${p.id})`);
+    assert.deepEqual(text.match(/^## .+$/gm), [...headings.slice(0, 2), ...processingHeadings, ...headings.slice(2)]);
+    for (const h of processingHeadings) {
+      const section = text.split(`${h}\n`)[1].split(/^## /m)[0];
+      assert.deepEqual(section.match(/^### .+$/gm), subheadings, h);
+    }
+  });
+
+  test(`register v0.2 ${language}: three-column tables have valid sources, labels in order, placeholders without source`, () => {
+    const check = (rows, labels, where) => {
+      assert.deepEqual(rows.map((c) => c[0]).filter(Boolean), labels.map((l) => l[language]), where);
+      for (const cells of rows) {
+        assert.equal(cells.length, 3, cells.join(' | '));
+        const [, value, source] = cells;
+        assert.match(source, provenance, cells.join(' | '));
+        assert.equal(placeholders.includes(value), source === '—', cells.join(' | '));
+        const code = source.match(/^code: (\S+?)@([0-9a-f]{7}):/);
+        if (code) assert.equal(code[2], readYaml(v02Dir, 'services', code[1], 'sync.yaml').sha.slice(0, 7), source);
+      }
+    };
+    check(tableAfter(text, headings[0]), rowLabels('Organisation'), 'Organisation');
+    for (const p of v02Processings) {
+      const section = text.split(`## ${p.name} (${p.id})\n`)[1];
+      check(tableAfter(section, subheadings[0]), rowLabels('Art. 30'), p.id);
+      check(tableAfter(section, subheadings[1]), rowLabels('DPO checks'), p.id);
+    }
+  });
+
+  test(`register v0.2 ${language}: actions are known, labelled, sorted, and add up to open_items`, () => {
+    const rows = tableAfter(text, headings[1]).map((cells) => {
+      assert.equal(cells.length, 4, cells.join(' | '));
+      const [, id, label] = cells[0].match(/^`([a-z-]+)`: (.+)$/);
+      return { id, label, role: cells[1], count: Number(cells[2]), where: cells[3].split(', ') };
+    });
+    assert.equal(rows.length, head.actions);
+    assert.equal(rows.reduce((n, r) => n + r.count, 0), head.open_items);
+    for (const r of rows) {
+      assert.ok(actionRules[r.id], r.id);
+      assert.equal(r.label, actionRules[r.id][language], r.id);
+      assert.equal(r.role, roleLabels[actionRules[r.id].role][language], r.id);
+      assert.ok(Number.isInteger(r.count) && r.count > 0, r.id);
+      const places = [placeLabels.Organisation[language], ...v02Processings.map((p) => p.id), placeLabels['AI features'][language], placeLabels['Outside the register'][language]];
+      assert.deepEqual(r.where, places.filter((pl) => r.where.includes(pl)), `${r.id}: where in document order`);
+    }
+    const key = (r) => [roleOrder.indexOf(actionRules[r.id].role), -r.count];
+    for (let i = 1; i < rows.length; i += 1) {
+      const [a, b] = [key(rows[i - 1]), key(rows[i])];
+      assert.ok(a[0] < b[0] || (a[0] === b[0] && (a[1] < b[1] || (a[1] === b[1] && rows[i - 1].id < rows[i].id))), `${rows[i - 1].id} before ${rows[i].id}`);
+    }
+  });
+
+  test(`register v0.2 ${language}: AI features and Outside the register rows are well formed and sorted`, () => {
+    const ai = tableAfter(text, headings[2]);
+    const outside = tableAfter(text, headings[3]);
+    for (const rows of [ai, outside]) {
+      for (const cells of rows) {
+        assert.equal(cells.length, 6, cells.join(' | '));
+        assert.match(cells[5], provenance);
+        assert.notEqual(cells[5], '—');
+        const code = cells[5].match(/^code: (\S+?)@([0-9a-f]{7}):/);
+        if (code) assert.equal(code[2], readYaml(v02Dir, 'services', code[1], 'sync.yaml').sha.slice(0, 7), cells[5]);
+      }
+    }
+    const aiKeys = ai.map((c) => [c[0], c[1].split(': ')[0]]);
+    const referenced = new Set(v02Processings.flatMap((p) => p.services.map((e) => e.repo ?? e.tool)));
+    const expected = v02Manifests.filter((x) => referenced.has(x.label)).flatMap((x) => x.manifest.ai_features.map((f) => [x.label, f.id]))
+      .sort((a, b) => (a[0] === b[0] ? (a[1] < b[1] ? -1 : 1) : (a[0] < b[0] ? -1 : 1)));
+    assert.deepEqual(aiKeys, expected);
+    const services = outside.map((c) => c[0]);
+    assert.deepEqual(services, [...services].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)));
+    assert.ok(text.split(`${headings[2]}\n\n`)[1].startsWith(ai.length === 0 ? '' : `${ai.length} `));
+    assert.ok(text.split(`${headings[3]}\n\n`)[1].startsWith(outside.length === 0 ? '' : `${outside.length} `));
+  });
+}
+
+if (goldens.every(([, file]) => existsSync(file))) {
+  test('register v0.2: the English and French goldens have the same lines and the same sources', () => {
+    const [en, fr] = goldens.map(([, file]) => readFileSync(file, 'utf8'));
+    assert.equal(fr.split('\n').length, en.split('\n').length);
+    const sources = (text) => text.split('\n').filter((l) => l.startsWith('| ') && !l.startsWith('| ---')).map((l) => cellsOf(l).at(-1)).filter((c) => provenance.test(c));
+    assert.deepEqual(sources(fr), sources(en));
+  });
+}
+
 // Compliance init (skills/compliance-init)
-import { mkdtempSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 
 const initDir = join(root, 'skills', 'compliance-init');
 const initRepo = join(initDir, 'example', 'repo');

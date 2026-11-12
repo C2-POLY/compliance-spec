@@ -1,4 +1,4 @@
-spec_version: "0.1"
+spec_version: "0.2"
 
 service:
   name: Bistro Booking API
@@ -68,6 +68,17 @@ personal_data:
     source: {kind: code, ref: "src/auth/staff.ts"}
     linked_files: ["src/auth/**"]
 
+  - id: request-metadata
+    component: api
+    subjects: [restaurant guests]
+    fields:
+      - {name: IP address of the booking request, category: connection}
+      - {name: browser user agent, category: connection}
+    purpose: protect the booking API against abuse and fake bookings
+    legal_basis: legitimate-interests
+    source: {kind: code, ref: "src/middleware/rate-limit.ts"}
+    linked_files: ["src/middleware/**"]
+
 storage:
   - id: main-db
     kind: database
@@ -87,7 +98,7 @@ storage:
   - id: app-logs
     kind: log
     location: log service of the hosting provider, EU region
-    data: [guest-contact]
+    data: [guest-contact, request-metadata]
     retention: {duration: P30D, trigger: log rotation}
     source: {kind: declared, ref: "docs/operations.md"}
 
@@ -98,6 +109,7 @@ processors:
     service: SMS booking reminders
     country: NL
     dpa: "yes"
+    dpa_ref: "TextFlow SMS data processing agreement, signed 2025-09-02"
     transfer_outside_eu: false
     data: [guest-contact]
     source: {kind: code, ref: "src/notifications/sms.ts"}
@@ -108,6 +120,7 @@ processors:
     service: transactional email (confirmations, reminders)
     country: FR
     dpa: "yes"
+    dpa_ref: "MailRelay standard data processing terms, version 2025"
     transfer_outside_eu: false
     data: [guest-contact, booking-details]
     source: {kind: code, ref: "src/notifications/email.ts"}
@@ -118,6 +131,7 @@ processors:
     service: card deposits
     country: US
     dpa: "yes"
+    dpa_ref: "PayGate data processing addendum, signed 2025-11-20"
     transfer_outside_eu: true
     safeguard: standard contractual clauses
     data: [guest-contact, payment-reference]
@@ -146,6 +160,7 @@ outbound_flows:
     data: [guest-contact, payment-reference]
     purpose: hold and charge the booking deposit
     account: organisation
+    processor: paygate
     source: {kind: code, ref: "src/payments/deposit.ts"}
 
   - id: calendar-link
@@ -154,6 +169,7 @@ outbound_flows:
     data: [booking-details]
     purpose: let the guest add the booking to their own calendar
     account: user
+    safeguard: "The guest adds the booking to a calendar of their choice with their own account; the service only offers the link."
     source: {kind: code, ref: "src/bookings/calendar.ts"}
 
 automated_decisions:
@@ -173,6 +189,10 @@ ai_features:
     interacts_with_persons: false
     human_review: true
     marking: Internal score, never shown to guests; the guest is told that a deposit may be asked.
+    role: provider
+    risk: {level: limited, reason: "The score only asks for a deposit that a manager can waive; it is not an Annex III use."}
+    obligations:
+      - {id: art4-ai-literacy, status: open}
     data: [no-show-history]
     source: {kind: spec, ref: "https://github.com/bistro-org/bistro-api/issues/42"}
     linked_files: ["src/scoring/**"]
@@ -184,6 +204,11 @@ ai_features:
     interacts_with_persons: true
     human_review: false
     marking: The chat window starts with "You are talking to an AI assistant".
+    role: to-assess
+    risk: {level: limited, reason: "A chat assistant that talks to guests: transparency obligations only."}
+    obligations:
+      - {id: art4-ai-literacy, status: done, ref: "AI training of the support team, 2026"}
+      - {id: art50-interaction, status: done, ref: "The chat window starts with \"You are talking to an AI assistant\"."}
     source: {kind: code, ref: "src/assistant/chat.ts"}
     linked_files: ["src/assistant/**"]
 
@@ -194,5 +219,6 @@ linked_files:
   - "src/scoring/**"
   - "src/auth/**"
   - "src/assistant/**"
+  - "src/middleware/**"
   - "db/migrations/**"
   - "package.json"

@@ -136,17 +136,24 @@ test('missing-services exits 0 on the Bistro Booking examples, v0.2 and v0.1', (
 
 // Compliance step (skills/compliance-step)
 const stepDir = join(root, 'skills', 'compliance-step');
-const manifestSchema = JSON.parse(readFileSync(join(root, 'schema', 'v0.1', 'manifest.schema.json'), 'utf8'));
+const manifestSchema = JSON.parse(readFileSync(join(root, 'schema', 'v0.2', 'manifest.schema.json'), 'utf8'));
+const processingSchema = JSON.parse(readFileSync(join(root, 'schema', 'v0.2', 'processing.schema.json'), 'utf8'));
 const triggersMapping = parse(readFileSync(join(stepDir, 'triggers.yaml'), 'utf8'));
 const triggerQuestions = new Map(triggersMapping.triggers.flatMap((t) => t.questions.map((q) => [q.id, { ...q, trigger: t.id }])));
-// The compliance-step scenarios start from the v0.1 bistro-api manifest, kept in the v0.1 example.
-const baseManifestFile = join(v01Dir, 'services', 'bistro-api', 'manifest.yaml');
+// The compliance-step scenarios start from the v0.2 bistro-api manifest of the example.
+const baseManifestFile = join(root, 'examples', 'bistro-booking', 'services', 'bistro-api', 'manifest.yaml');
 const baseManifest = parse(readFileSync(baseManifestFile, 'utf8'));
 const frontMatter = (file) => parse(readFileSync(file, 'utf8').match(/^---\n([\s\S]*?)\n---/)[1]);
 const scenarios = readdirSync(join(stepDir, 'scenarios')).sort();
 
-test('every manifest field path in triggers.yaml exists in the manifest schema', () => {
-  assert.deepEqual(orphans(triggersMapping, manifestSchema), []);
+test('every field path in triggers.yaml exists in the v0.2 manifest or processing schema', () => {
+  assert.deepEqual(orphans(triggersMapping, manifestSchema, processingSchema), []);
+  assert.equal(baseManifest.spec_version, '0.2');
+});
+
+test('check-triggers CLI passes on triggers.yaml', () => {
+  const result = spawnSync(process.execPath, [join(root, 'scripts', 'check-triggers.mjs')], { encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stdout);
 });
 
 test('check-triggers reports a bogus field path', () => {
@@ -155,19 +162,35 @@ test('check-triggers reports a bogus field path', () => {
       { id: 'z1', field: 'processors[].name' },
       { id: 'z2', field: 'processors[].colour' },
       { id: 'z3', field: 'personal_data[].fields[].category', also: ['storage[].retention.nope'] },
+      { id: 'z4', field: 'notices[].kind', also: ['ai_features[].risk.level'], processing: ['legal_basis_detail.consent', 'legal_basis_detail.colour'] },
     ] }],
   };
-  assert.deepEqual(orphans(mapping, manifestSchema), ['z2: processors[].colour', 'z3: storage[].retention.nope']);
+  assert.deepEqual(orphans(mapping, manifestSchema, processingSchema),
+    ['z2: processors[].colour', 'z3: storage[].retention.nope', 'z4: processing legal_basis_detail.colour']);
+  const v01 = JSON.parse(readFileSync(join(root, 'schema', 'v0.1', 'manifest.schema.json'), 'utf8'));
+  assert.deepEqual(orphans({ triggers: [{ id: 'z', questions: [{ id: 'z5', field: 'notices[].kind' }] }] }, v01), ['z5: notices[].kind']);
 });
 
-test('triggers.yaml has four triggers with 2 to 4 questions each, unique ids', () => {
-  assert.deepEqual(triggersMapping.triggers.map((t) => t.id), ['a', 'b', 'c', 'd']);
+test('triggers.yaml has six triggers with 2 to 4 questions each, unique ids', () => {
+  assert.deepEqual(triggersMapping.triggers.map((t) => t.id), ['a', 'b', 'c', 'd', 'e', 'f']);
   for (const t of triggersMapping.triggers) assert.ok(t.questions.length >= 2 && t.questions.length <= 4, t.id);
   assert.equal(triggerQuestions.size, triggersMapping.triggers.reduce((n, t) => n + t.questions.length, 0));
 });
 
-test('there are three scenarios', () => {
-  assert.deepEqual(scenarios, ['01-guest-phone', '02-sms-provider', '03-button-colour']);
+test('there are five scenarios', () => {
+  assert.deepEqual(scenarios, ['01-guest-phone', '02-sms-provider', '03-button-colour', '04-assistant-notice', '05-assistant-own-model']);
+});
+
+test('compliance-step: a4 asks the legal basis detail, for the processing file, and the step writes v0.2', () => {
+  assert.deepEqual(triggerQuestions.get('a4').processing, ['legal_basis_detail.reference', 'legal_basis_detail.balancing_test', 'legal_basis_detail.consent']);
+  assert.match(triggerQuestions.get('a4').text, /what supports it/);
+  const skill = readFileSync(join(stepDir, 'SKILL.md'), 'utf8');
+  assert.match(skill, /spec_version: "0\.2"/);
+  assert.match(skill, /Legal basis detail, for the processing file/);
+  assert.match(skill, /`processor: <processor id>`/);
+  const section = readFileSync(join(stepDir, 'scenarios', '01-guest-phone', 'expected-section.md'), 'utf8');
+  assert.match(section, /^  - Legal basis detail, for the processing file: \S/m);
+  for (const name of scenarios) assert.equal(parse(readFileSync(join(stepDir, 'scenarios', name, 'expected-manifest.yaml'), 'utf8')).spec_version, '0.2', name);
 });
 
 for (const name of scenarios) {
@@ -193,7 +216,7 @@ for (const name of scenarios) {
     if (triggers.length === 0) {
       assert.match(section, /^GDPR impact: none\n[^\n]+\n$/);
     } else {
-      assert.match(section, /^\*\*Compliance\*\*\n\n(- [^\n]+\n)+\nManifest: updated in this branch\n$/);
+      assert.match(section, /^\*\*Compliance\*\*\n\n(- [^\n]+\n(  - [^\n]+\n)*)+\nManifest: updated in this branch\n$/);
       assert.equal(section.split('\n- ').length - 1, triggers.length);
     }
   });
@@ -204,17 +227,17 @@ test('scenario 03: the expected manifest is the starting manifest, byte for byte
   assert.equal(expected, readFileSync(baseManifestFile, 'utf8'));
 });
 
-for (const name of ['01-guest-phone', '02-sms-provider']) {
+for (const name of ['01-guest-phone', '02-sms-provider', '04-assistant-notice', '05-assistant-own-model']) {
   test(`scenario ${name}: every changed or added item has source spec and the issue url`, () => {
     const dir = join(stepDir, 'scenarios', name);
     const { url } = frontMatter(join(dir, 'issue.md'));
     const expected = parse(readFileSync(join(dir, 'expected-manifest.yaml'), 'utf8'));
     let changed = 0;
-    for (const list of ['personal_data', 'storage', 'processors', 'outbound_flows', 'automated_decisions', 'ai_features']) {
-      const before = new Map(baseManifest[list].map((item) => [item.id, item]));
-      const after = new Set(expected[list].map((item) => item.id));
+    for (const list of ['personal_data', 'storage', 'processors', 'outbound_flows', 'automated_decisions', 'ai_features', 'notices']) {
+      const before = new Map((baseManifest[list] ?? []).map((item) => [item.id, item]));
+      const after = new Set((expected[list] ?? []).map((item) => item.id));
       for (const id of before.keys()) assert.ok(after.has(id), `${list}/${id} must not be removed`);
-      for (const item of expected[list]) {
+      for (const item of expected[list] ?? []) {
         if (JSON.stringify(before.get(item.id)) === JSON.stringify(item)) continue;
         changed += 1;
         assert.deepEqual(item.source, { kind: 'spec', ref: url }, `${list}/${item.id}`);
@@ -224,6 +247,18 @@ for (const name of ['01-guest-phone', '02-sms-provider']) {
     assert.deepEqual(expected.service, baseManifest.service);
   });
 }
+
+test('scenarios 04 and 05: a notice and an AI role change are written with v0.2 fields', () => {
+  const notice = parse(readFileSync(join(stepDir, 'scenarios', '04-assistant-notice', 'expected-manifest.yaml'), 'utf8'));
+  assert.deepEqual(notice.notices.map((n) => [n.id, n.kind]), [['assistant-notice', 'screen']]);
+  const ai = parse(readFileSync(join(stepDir, 'scenarios', '05-assistant-own-model', 'expected-manifest.yaml'), 'utf8'));
+  const feature = ai.ai_features.find((f) => f.id === 'booking-assistant');
+  assert.equal(feature.role, 'provider');
+  assert.equal(feature.risk.level, 'limited');
+  // Every obligation the spec expects for the feature is listed.
+  const expected = ['art4-ai-literacy', ...(feature.interacts_with_persons ? ['art50-interaction'] : []), ...(feature.generates_content ? ['art50-synthetic-content'] : [])];
+  for (const id of expected) assert.ok(feature.obligations.some((o) => o.id === id), id);
+});
 
 // Register template v0.1 (templates/register/register.md.tmpl), checked on the v0.1 example
 const exampleDir = v01Dir;
@@ -546,7 +581,8 @@ const initExpected = join(initDir, 'example', 'expected');
 const initText = (...parts) => readFileSync(join(initDir, ...parts), 'utf8');
 const expectedManifestFile = join(initExpected, 'manifest.yaml');
 const expectedManifest = parse(readFileSync(expectedManifestFile, 'utf8'));
-const manifestLists = ['personal_data', 'storage', 'processors', 'outbound_flows', 'automated_decisions', 'ai_features'];
+const manifestLists = ['personal_data', 'storage', 'processors', 'outbound_flows', 'automated_decisions', 'ai_features', 'notices'];
+const items = (manifest, list) => manifest[list] ?? [];
 const notShipped = /(^|\/)(tests?|__tests__|fixtures?|mocks?|samples?|testdata)\//;
 
 // Git pathspec glob semantics, as the compliance action uses them: `*` stays in a path segment, `**` crosses folders.
@@ -570,10 +606,10 @@ const findingRows = findingsText
   .split(/^## /m)
   .slice(1)
   .filter((s) => manifestLists.includes(s.split('\n')[0].trim()))
-  .flatMap((s) => s.split('\n').filter((l) => /^\| [PSROAD]\d+ \|/.test(l)).map((l) => ({ section: s.split('\n')[0].trim(), cells: splitCells(l) })));
+  .flatMap((s) => s.split('\n').filter((l) => /^\| [PSROADN]\d+ \|/.test(l)).map((l) => ({ section: s.split('\n')[0].trim(), cells: splitCells(l) })));
 const findingFiles = (cells) => [...cells[2].matchAll(/`([^`:]+)(?::\d+(?:-\d+)?)?`/g)].map((m) => m[1]);
 const allFindingFiles = new Set(findingRows.flatMap(({ cells }) => findingFiles(cells)));
-const codeRefs = (manifest) => [manifest.service, ...manifestLists.flatMap((l) => manifest[l])]
+const codeRefs = (manifest) => [manifest.service, ...manifestLists.flatMap((l) => items(manifest, l))]
   .filter((item) => item.source.kind === 'code')
   .flatMap((item) => item.source.ref.split(/\s*,\s*/).map((path) => ({ item: item.id ?? 'service', path })));
 const fencedBlocks = (text) => [...text.matchAll(/^```yaml file=(\S+)\n([\s\S]*?)^```$/gm)].map((m) => ({ file: m[1], body: m[2] }));
@@ -621,7 +657,24 @@ test('compliance-init: the example repo has the code the findings point at, and 
 });
 
 test('compliance-init: the expected manifest validates, with the cross-reference checks', () => {
+  assert.equal(expectedManifest.spec_version, '0.2');
   assert.deepEqual(validateFile(expectedManifestFile, 'manifest'), []);
+});
+
+test('compliance-init: the expected manifest uses the v0.2 fields the code and the answers give', () => {
+  const categories = expectedManifest.personal_data.flatMap((d) => d.fields.map((f) => f.category));
+  assert.ok(categories.includes('connection'), 'a component served by a host has connection data');
+  for (const flow of expectedManifest.outbound_flows) {
+    const processor = expectedManifest.processors.find((r) => r.name === flow.to.name);
+    if (processor) assert.equal(flow.processor, processor.id, `${flow.id} links its processor`);
+  }
+  assert.ok(expectedManifest.processors.some((r) => r.dpa_ref), 'dpa_ref from the answers');
+  assert.ok(items(expectedManifest, 'notices').length >= 1);
+  for (const feature of expectedManifest.ai_features) {
+    assert.ok(feature.role && feature.risk?.level, `${feature.id}: role and risk`);
+    const expected = ['art4-ai-literacy', ...(feature.interacts_with_persons ? ['art50-interaction'] : []), ...(feature.generates_content ? ['art50-synthetic-content'] : [])];
+    assert.deepEqual(feature.obligations.map((o) => o.id).sort(), expected.sort(), `${feature.id}: expected obligations`);
+  }
 });
 
 test('compliance-init: every code source is an existing file of the example repo, outside tests and fixtures', () => {
@@ -636,7 +689,7 @@ test('compliance-init: every code source is an existing file of the example repo
 });
 
 test('compliance-init: every other source is declared and names who declared it', () => {
-  for (const item of [expectedManifest.service, ...manifestLists.flatMap((l) => expectedManifest[l])]) {
+  for (const item of [expectedManifest.service, ...manifestLists.flatMap((l) => items(expectedManifest, l))]) {
     if (item.source.kind !== 'code') {
       assert.equal(item.source.kind, 'declared', item.id ?? 'service');
       assert.match(item.source.ref, /answered by .+ during compliance-init/);
@@ -666,14 +719,14 @@ test('compliance-init: findings rows are well formed and every Becomes resolves 
     assert.ok(findingFiles(cells).length > 0, `${cells[0]} needs a file`);
     for (const target of cells[4].split(/\s*,\s*/)) {
       const ref = target.match(/^(\w+)\/([a-z0-9-]+)$/);
-      if (ref) assert.ok(expectedManifest[ref[1]]?.some((item) => item.id === ref[2]), `${cells[0]}: ${target}`);
+      if (ref) assert.ok(items(expectedManifest, ref[1]).some((item) => item.id === ref[2]), `${cells[0]}: ${target}`);
       else if (target.startsWith('question ')) assert.ok(Number(target.slice(9)) >= 1 && Number(target.slice(9)) <= questions, `${cells[0]}: ${target}`);
       else assert.match(target, /^out: \S/, `${cells[0]}: unknown target ${target}`);
     }
-    assert.equal(cells[0][0], {personal_data: 'P', storage: 'S', processors: 'R', outbound_flows: 'O', ai_features: 'A', automated_decisions: 'D'}[section], cells[0]);
+    assert.equal(cells[0][0], {personal_data: 'P', storage: 'S', processors: 'R', outbound_flows: 'O', ai_features: 'A', automated_decisions: 'D', notices: 'N'}[section], cells[0]);
   }
   for (const list of manifestLists) {
-    for (const item of expectedManifest[list]) {
+    for (const item of items(expectedManifest, list)) {
       if (item.source.kind === 'code') {
         assert.ok(findingRows.some(({ cells }) => cells[4].split(/\s*,\s*/).includes(`${list}/${item.id}`)), `${list}/${item.id} has no finding`);
       }
@@ -695,7 +748,7 @@ test('compliance-init: the answers file has one answer per question of the findi
   assert.deepEqual(answers, questions);
 });
 
-test('compliance-init: COMPLIANCE.md holds a valid compliance.yaml entry and valid processing files', () => {
+test('compliance-init: COMPLIANCE.md holds a valid v0.2 compliance.yaml with the organisation block, and valid v0.2 processing files', () => {
   const text = readFileSync(join(initExpected, 'COMPLIANCE.md'), 'utf8');
   const blocks = fencedBlocks(text);
   const entry = blocks.filter((b) => b.file === 'compliance.yaml');
@@ -704,11 +757,14 @@ test('compliance-init: COMPLIANCE.md holds a valid compliance.yaml entry and val
   assert.ok(processings.length >= 1);
   assert.equal(blocks.length, entry.length + processings.length);
 
-  const repos = parse(entry[0].body);
+  assert.deepEqual(validateText('compliance.yaml', entry[0].body, 'compliance'), []);
+  const compliance = parse(entry[0].body);
+  assert.equal(compliance.spec_version, '0.2');
+  assert.deepEqual(Object.keys(compliance.organisation), ['name', 'controller', 'dpo', 'representative', 'privacy_contact']);
+  const repos = compliance.repos;
   assert.ok(Array.isArray(repos) && repos.length === 1);
   assert.equal(repos[0].name, expectedManifest.service.repo.split('/')[1]);
-  const doc = `spec_version: "0.1"\norganisation:\n  name: Bistro Booking Group\nrepos:\n${entry[0].body.replace(/^/gm, '  ')}`;
-  assert.deepEqual(validateText('compliance.yaml', doc, 'compliance'), []);
+  const noticeIds = new Set(items(expectedManifest, 'notices').map((n) => n.id));
 
   const dataIds = new Set(expectedManifest.personal_data.map((d) => d.id));
   const recipientIds = new Set([...expectedManifest.processors, ...expectedManifest.outbound_flows].map((r) => r.id));
@@ -716,7 +772,12 @@ test('compliance-init: COMPLIANCE.md holds a valid compliance.yaml entry and val
   for (const { file, body } of processings) {
     assert.deepEqual(validateText('processing.yaml', body, 'processing'), [], file);
     const p = parse(body);
+    assert.equal(p.spec_version, '0.2', file);
     assert.equal(file, `processings/${p.id}/processing.yaml`);
+    // Controller and DPO are inherited from compliance.yaml; the DPO checks are left to the DPO, not written.
+    for (const key of ['controller', 'dpo', 'legal_basis_detail', 'dpia', 'sensitive_data', 'joint_controllers']) assert.ok(!(key in p), `${file}: ${key}`);
+    for (const n of p.information?.notices ?? []) assert.ok(n.repo === repos[0].name && noticeIds.has(n.id), `${file}: notice ${n.id}`);
+    assert.match(text, new RegExp(`^### ${p.id}\\n(\\n- [^\\n]+){5}`, 'm'), `${file}: five DPO checks`);
     for (const s of p.services) {
       assert.equal(s.repo, repos[0].name);
       for (const id of s.data ?? []) { assert.ok(dataIds.has(id), `${file}: data ${id}`); covered.add(id); }
@@ -860,6 +921,14 @@ test('compliance-init: the skill states the retention, flow, conservative-defaul
   assert.match(skill, /whose account/i);
   assert.match(skill, /user-of-the-app/);
   assert.match(initText('compliance-handoff.md'), /user-of-the-app[\s\S]*Art\. 30/);
+  assert.match(initText('compliance-handoff.md'), /No `controller` and no `dpo`/);
+  assert.match(skill, /`spec_version: "0\.2"`/);
+  assert.match(skill, /category `connection`/);
+  assert.match(skill, /`service\.controller_rationale`/);
+  assert.match(skill, /`service\.privacy_by_design`/);
+  assert.match(skill, /`role: to-assess` and `risk: \{level: to-assess\}`/);
+  assert.match(skill, /never asked: they go to the handoff as items for the DPO/);
+  assert.match(scan, /## 9\. `service`, `notices` and `linked_files`/);
   assert.match(skill, /commits\/<tag> --jq \.sha/);
   assert.match(skill, /annotated/);
   assert.match(skill, /TODO/);

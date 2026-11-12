@@ -10,7 +10,7 @@ An open format to describe, repo by repo, what a software service does with pers
 - **Compliance repo**: one repository per organisation that holds no code. It gathers the manifests of every repo, organised by processing activity rather than by repo, plus the generated documents.
 - **`compliance.yaml`**: the list of repos and external tools that make up the information system.
 - **JSON Schemas** for each of these files.
-- **A compliance step for `/topic`-style skills**: it asks targeted GDPR / AI Act questions at spec time, and only when a change triggers them.
+- **A compliance step for `/topic`-style skills**: it asks targeted GDPR / AI Act questions at spec time, and only when a change triggers them (data, recipients, storage, decisions and AI, notices, AI Act role and risk).
 - **A skill to start from existing code**: it scans a repo, writes its first manifest, asks only what the code cannot tell and opens a pull request.
 - **Register templates**: the records of processing activities (GDPR Art. 30) for v0.1, and for v0.2 a compliance dossier in English or French: the organisation's identity, the actions that close the open items, Art. 30 and the DPO checks per processing, the AI features, and what stays outside the register.
 

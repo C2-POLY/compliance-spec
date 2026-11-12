@@ -1,4 +1,4 @@
-spec_version: "0.1"
+spec_version: "0.2"
 
 service:
   name: Bistro Booking API
@@ -43,6 +43,15 @@ personal_data:
     legal_basis: contract # declared: question 3, engineering lead
     source: {kind: code, ref: "src/assistant/suggest.ts"}
 
+  - id: request-metadata
+    subjects: [restaurant guests]
+    fields:
+      - {name: IP address of the guest's request, category: connection}
+      - {name: browser user agent and other technical headers, category: connection}
+    purpose: receive the booking requests guests send from the booking form
+    legal_basis: contract # declared: question 3, engineering lead
+    source: {kind: code, ref: "src/guests/routes.ts"}
+
 storage:
   - id: main-db
     kind: database
@@ -64,6 +73,7 @@ processors:
     service: SMS booking reminders
     country: NL # declared: question 5, engineering lead
     dpa: "yes" # declared: question 6, engineering lead
+    dpa_ref: "TextFlow SMS data processing agreement, signed 2025-09-02" # declared: question 6, engineering lead
     transfer_outside_eu: false # follows from the country declared in question 5
     data: [guest-contact]
     source: {kind: code, ref: "src/notifications/sms.ts"}
@@ -83,6 +93,7 @@ outbound_flows:
     data: [guest-contact]
     purpose: send the booking reminder by SMS
     account: organisation # confirmed: question 7, engineering lead
+    processor: textflow-sms
     source: {kind: code, ref: "src/notifications/sms.ts"}
 
   - id: ask-assistant
@@ -90,6 +101,7 @@ outbound_flows:
     data: [guest-contact, assistant-questions]
     purpose: get an AI draft of a reply to a guest's question
     account: organisation # confirmed: question 7, engineering lead
+    processor: chatloom
     source: {kind: code, ref: "src/assistant/suggest.ts"}
 
 automated_decisions: []
@@ -100,9 +112,20 @@ ai_features:
     generates_content: true
     interacts_with_persons: false
     human_review: true # inferred from the code (the draft is only returned to the back office); to confirm
-    # marking: none. Declared in question 8: guests are not told, staff send the reply in their own name.
+    # marking: none. Declared in question 9: guests are not told, staff send the reply in their own name.
+    role: to-assess # question 9: not known yet (deployer of ChatLoom's model, or provider of the drafting feature)
+    risk: {level: limited, reason: "Drafts replies that staff edit and send; it decides nothing about the guest."} # declared: question 9, engineering lead
+    obligations:
+      - {id: art4-ai-literacy, status: open} # not in the code; to confirm
+      - {id: art50-synthetic-content, status: open} # the code does not mark the draft as AI-generated; to confirm
     data: [guest-contact, assistant-questions]
     source: {kind: code, ref: "src/assistant/suggest.ts"}
+
+notices:
+  - id: privacy-page
+    kind: page
+    ref: https://bistro-booking.example/privacy # declared: question 8, engineering lead
+    source: {kind: declared, ref: "answered by the engineering lead during compliance-init"}
 
 linked_files:
   - "src/guests/**"

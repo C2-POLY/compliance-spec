@@ -1,12 +1,13 @@
 # Machine-readable mapping of the compliance step: trigger id -> questions -> manifest field path.
-# Explained in triggers.md. Every path is checked against the manifest schema by scripts/check-triggers.mjs.
+# Explained in triggers.md. Every path is checked against the v0.2 schemas by scripts/check-triggers.mjs.
 # `field` is the main path the answer fills; `also` lists other paths the same answer settles.
+# `processing` lists paths of processing.yaml (compliance repo) the answer feeds: written to the Compliance section, not to the manifest.
 triggers:
   - id: a
     name: New personal data field
     questions:
       - id: a1
-        text: What is the new data, and is it identity, contact, financial, location, usage, professional, health, special or credential data?
+        text: What is the new data, and is it identity, contact, financial, location, usage, professional, connection, health, special or credential data?
         field: personal_data[].fields[].category
         also:
           - personal_data[].fields[].name
@@ -17,8 +18,12 @@ triggers:
         text: Why is it collected, in one sentence?
         field: personal_data[].purpose
       - id: a4
-        text: On what legal basis (consent, contract, legal obligation, legitimate interests, other, or not known yet)?
+        text: On what legal basis (consent, contract, legal obligation, legitimate interests, other, or not known yet), and what supports it (the contract or law relied on, why our interest outweighs the person's, or how consent is collected and withdrawn)?
         field: personal_data[].legal_basis
+        processing:
+          - legal_basis_detail.reference
+          - legal_basis_detail.balancing_test
+          - legal_basis_detail.consent
   - id: b
     name: New external service or recipient
     questions:
@@ -28,6 +33,7 @@ triggers:
         also:
           - processors[].service
           - outbound_flows[].to.name
+          - outbound_flows[].processor
       - id: b2
         text: In which country does it process the data, and if that is outside the EU/EEA, which safeguard covers the transfer?
         field: processors[].country
@@ -35,9 +41,12 @@ triggers:
           - processors[].transfer_outside_eu
           - processors[].safeguard
           - outbound_flows[].to.country
+          - outbound_flows[].safeguard
       - id: b3
-        text: Is a data processing agreement signed with it (yes, no, unknown)?
+        text: Is a data processing agreement signed with it (yes, no, unknown), and where is it (the signed agreement or the provider's standard terms)?
         field: processors[].dpa
+        also:
+          - processors[].dpa_ref
       - id: b4
         text: Which personal data is sent to it?
         field: processors[].data
@@ -82,3 +91,31 @@ triggers:
         also:
           - ai_features[].interacts_with_persons
           - ai_features[].generates_content
+  - id: e
+    name: Notice to persons
+    questions:
+      - id: e1
+        text: What tells the persons about their data here (a privacy page, an in-app screen, a consent banner, an email), or is there nothing yet?
+        field: notices[].kind
+      - id: e2
+        text: Where is it (a URL, a file path or a screen name), and which part of the service shows it?
+        field: notices[].ref
+        also:
+          - notices[].component
+  - id: f
+    name: AI role or risk change
+    questions:
+      - id: f1
+        text: Do we build or fine-tune the AI system, or put it into service under our own name (provider), or use someone else's system as it is (deployer), or not known yet?
+        field: ai_features[].role
+      - id: f2
+        text: What is the AI used for, and does that make it high risk (decisions about hiring, credit, education, access to essential services...), limited (it talks to persons or generates content), minimal, or not known yet? Why?
+        field: ai_features[].risk.level
+        also:
+          - ai_features[].risk.reason
+      - id: f3
+        text: Which AI duties are already met, and where (staff trained on AI, persons told they talk to an AI, generated content marked as such)?
+        field: ai_features[].obligations[].status
+        also:
+          - ai_features[].obligations[].id
+          - ai_features[].obligations[].ref

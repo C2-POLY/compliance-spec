@@ -2,7 +2,7 @@
 
 An open format to describe, repo by repo, what a software service does with personal data, so that GDPR and AI Act documentation can be generated from the code and the specs instead of being rebuilt by hand after deployment.
 
-> **Status: draft.** Nothing is stable yet. Two versions of the format exist side by side: v0.1 (the records of processing) and v0.2 (a compliance dossier a DPO can review: organisation identity, DPO checks, AI Act classification). Every file declares its own `spec_version`; v0.1 files stay valid.
+> **Status: draft.** From v0.2, the format only grows: a release adds optional fields, sections and files, and never renames, removes or changes what exists ([stability rule](spec/stability.md)). Two versions of the format exist side by side: v0.1 (the records of processing) and v0.2 (a compliance dossier a DPO can review: organisation identity, DPO checks, AI Act classification). Every file declares its own `spec_version`; v0.1 files stay valid.
 
 ## What it covers
 
@@ -18,7 +18,7 @@ An open format to describe, repo by repo, what a software service does with pers
 
 | Folder | Content |
 | --- | --- |
-| `spec/` | The format, in prose: [index](spec/README.md) |
+| `spec/` | The format, in prose: [index](spec/README.md), and the [stability rule](spec/stability.md) |
 | `schema/` | JSON Schemas, versioned by folder: [`schema/v0.2`](schema/v0.2), [`schema/v0.1`](schema/v0.1) |
 | `skills/` | The compliance step for `/topic`: [`skills/compliance-step`](skills/compliance-step) (triggers, questions, scenarios); and the one-time first manifest of an existing repo: [`skills/compliance-init`](skills/compliance-init) (scan guide, findings, pull request, example) |
 | `templates/` | Document templates: [`templates/register`](templates/register) (v0.1 records of processing, GDPR Art. 30(1); v0.2 compliance dossier in English and French: mapping, provenance, open items, actions, translations, templates) |

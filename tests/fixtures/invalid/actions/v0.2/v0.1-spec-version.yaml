@@ -1,0 +1,3 @@
+# expect: /spec_version const
+spec_version: "0.1"
+contacts: []

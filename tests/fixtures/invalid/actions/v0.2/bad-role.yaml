@@ -1,0 +1,4 @@
+# expect: /contacts/0/role enum
+spec_version: "0.2"
+contacts:
+  - {id: legal, role: lawyer, name: Legal team, contact: legal@bistro-booking.example}

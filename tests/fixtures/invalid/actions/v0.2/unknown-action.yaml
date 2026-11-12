@@ -1,0 +1,6 @@
+# expect: /assignments/0/action enum
+spec_version: "0.2"
+contacts:
+  - {id: data-protection-office, role: dpo, name: Data protection office, contact: dpo@bistro-booking.example}
+assignments:
+  - {action: write-the-dossier, contact: data-protection-office}

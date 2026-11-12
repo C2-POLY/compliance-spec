@@ -5,7 +5,8 @@ Template of `.compliance/COMPLIANCE.md` (step 9). It is addressed to the owner o
 Rules for filling it:
 
 - The `compliance.yaml` block is a whole v0.2 file: `spec_version: "0.2"`, the `organisation` identity block, and `repos` with the entry of this repo. When the compliance repo already has a `compliance.yaml`, the owner keeps its filled values and adds the `repos` entry.
-- `organisation`: `name` from the answer to question 1. `controller` (`legal_name`, `address`, `registration`, `contact`), `dpo`, `representative` and `privacy_contact` come from an answer when one gave them; otherwise text values are `to complete` and `designated` / `required` are `unknown`. They are open items of the dossier until the owner fills them. `components` is present in the repo entry when the manifest has `service.components`.
+- `organisation`: `name` from the answer to question 1, `language` the dossier language (`en` or `fr`) of the last question of step 4, or of the compliance repo's `compliance.yaml`. `controller` (`legal_name`, `address`, `registration`, `contact`), `dpo`, `representative` and `privacy_contact` come from an answer when one gave them; otherwise text values are `to complete` and `designated` / `required` are `unknown`. They are open items of the dossier until the owner fills them. `components` is present in the repo entry when the manifest has `service.components`.
+- The free texts of the drafts (`name`, `purpose`, `data_subjects`, the "Why" lines) are written in the dossier language; ids and enum values stay in English.
 - One `processing.yaml` block per processing activity the findings suggest: the `personal_data` entries that share a purpose, data subjects and legal basis. `services[].data` and `services[].recipients` list ids of this repo's manifest. `recipients` is explicit (`[]` for none).
 - **No `controller` and no `dpo`** in a processing: it inherits them from `organisation` in `compliance.yaml`. Write them only when an answer says that this processing has another controller or DPO.
 - `information.notices` names the manifest's notices that tell these persons (`{repo: <repo>, id: <notice id>}`); left out when the manifest has none, which keeps the check open.
@@ -41,6 +42,7 @@ organisation:
   representative:
     required: unknown
   privacy_contact: to complete
+  language: <en or fr>
 repos:
   - name: <repo name without owner>
     url: https://github.com/<owner>/<name>
@@ -53,6 +55,7 @@ repos:
 - `dpo`: `designated: true` with `name` and `contact`, or `designated: false` with the `reason` no DPO is required.
 - `representative`: `required: false` (with a `reason`, e.g. "established in the EU") or `true` with `name` and `contact`.
 - `privacy_contact`: where persons exercise their rights (an email address or a URL).
+- `language`: the one language of the compliance repo; every text that reaches the dossier is written in it. Keep the value the compliance repo already has.
 
 ## 2. Processing activities
 

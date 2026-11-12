@@ -1,0 +1,7 @@
+spec_version: "0.2"
+contacts:
+  - {id: data-protection-office, role: dpo, name: Data protection office, contact: dpo@bistro-booking.example, scope: [organisation]}
+  - {id: platform-team, role: developer, name: platform team, contact: platform@bistro-booking.example, scope: [bistro-api]}
+assignments:
+  - {action: dpia, contact: data-protection-office, scope: marketing-emails, due: 2026-12-15, note: Assess the newsletter targeting.}
+  - {action: security-measures, contact: platform-team}

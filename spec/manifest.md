@@ -14,6 +14,7 @@ Conventions used below:
 - `data` is a list of `personal_data` ids of the same manifest. The reference must resolve.
 - Dates and durations: durations are ISO 8601 (`P3Y`, `P30D`, `PT12H`).
 - Countries are ISO 3166-1 alpha-2 codes (`FR`, `US`).
+- Free texts (descriptions, purposes, subjects, field names) are written in the language of the compliance repo the manifest is sent to; ids, enum values and code references stay in English ([Language](compliance-yaml.md#language-v021), v0.2.1).
 - Unknown keys are rejected. A missing answer is written `unknown` where the format allows it, never left out.
 
 ## Top level

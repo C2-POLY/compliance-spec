@@ -4,11 +4,12 @@
 
 An organisation has one **compliance repo**. It holds no code. It gathers the manifests of every repo of the information system, organised by **processing activity**, and the documents generated from them: in v0.2, a compliance dossier a DPO can review (the GDPR Art. 30 records of processing, the DPO checks of each processing, the AI features, and what stays outside the register); in v0.1, the records of processing only. A complete v0.2 example is in [`examples/bistro-booking/`](../examples/bistro-booking/); the v0.1 example is kept in [`tests/fixtures/v0.1/bistro-booking/`](../tests/fixtures/v0.1/bistro-booking/).
 
-Fields marked **(v0.2)** are new in v0.2 and rejected in a v0.1 file.
+Fields marked **(v0.2)** are new in v0.2 and rejected in a v0.1 file. **(v0.2.1)** marks what the v0.2.1 release added: optional, accepted with `spec_version: "0.2"` (see [stability.md](stability.md)).
 
 ```
 compliance.yaml                      the repos and tools of the information system
 anchors.yaml                         the commit each document was generated from
+actions.yaml                         optional: who closes which action of the dossier (v0.2.1)
 processings/<id>/processing.yaml     one processing activity
 services/<repo>/manifest.yaml        the manifest of a repo, as last sent
 services/<repo>/sync.yaml            when it was sent, and how far the repo is ahead
@@ -23,6 +24,7 @@ Each file declares its own `spec_version`, and the validator picks the schema di
 - A **v0.2 compliance repo** is one whose `compliance.yaml` has `spec_version: "0.2"`. Its generator writes the v0.2 dossier ([rules](../templates/register/README.md#v02-the-compliance-dossier)), in English or French (`documents/register.md` either way).
 - A v0.2 compliance repo may hold v0.1 and v0.2 manifests and processing files: a repo that has not upgraded keeps sending its v0.1 manifest. A v0.2 field missing from a v0.1 file is an open item of the dossier, never an error.
 - A **v0.1 compliance repo** keeps the v0.1 register, unchanged.
+- `actions.yaml` exists only in v0.2 (`spec_version: "0.2"`).
 - `sync.yaml` and `anchors.yaml` have the same shape in both versions; a v0.2 copy only changes `spec_version`. Both are accepted in either kind of repo.
 
 ## Who writes what
@@ -30,6 +32,7 @@ Each file declares its own `spec_version`, and the validator picks the schema di
 | Path | Written by | Schema | Notes |
 | --- | --- | --- | --- |
 | `compliance.yaml` | a human | [compliance](compliance-yaml.md) | Which repos exist, who owns them, which must send. |
+| `actions.yaml` | a human | `actions.schema.json` | **(v0.2.1)** Optional. Who answers for which role and scope, and who closes which action. See [actions.yaml](#actionsyaml-v021). |
 | `processings/<id>/processing.yaml` | a human | `processing.schema.json` | The processing activity and what only a person knows. |
 | `services/<repo>/manifest.yaml` | the Action | `manifest.schema.json` | A copy of the repo's `.compliance/manifest.yaml`. Never edited by hand. |
 | `services/<repo>/sync.yaml` | the Action | `sync.schema.json` | Rewritten at every sync. |
@@ -41,7 +44,7 @@ Files written by a tool are never edited by hand; a fix goes to the source (the 
 
 ## Validation by a person
 
-**A DPO validation is an approved, merged pull request on the compliance repo.** The Action and the generator open pull requests; nothing they write reaches the default branch without a human review. The review, its reviewer and its date are the validation record: the format adds no `validated_by` field to any file. A document on the default branch is a validated one; a document in an open pull request is a draft.
+**A DPO validation is an approved, merged pull request on the compliance repo.** The Action and the generator open pull requests; nothing they write reaches the default branch without a human review. The review, its reviewer and its date are the validation record. **(v0.2.1)** A processing file may also record the DPO's approval of its content in [`review`](#review-v021); the merged pull request stays the record of the merge, which a technical maintainer may do. A document on the default branch is a validated one; a document in an open pull request is a draft.
 
 ## processings/&lt;id&gt;/processing.yaml
 
@@ -66,6 +69,7 @@ One file per processing activity (a purpose, a set of data subjects, a legal bas
 | `security_measures` | list | no | `{measure, source}`: technical and organisational measures (Art. 30(1)(g)). |
 | `recipients` | list | no | `{name, source}`: recipients (Art. 30(1)(d)) the manifests do not already show. |
 | `retention` | object | no | `{duration, trigger, source}`: overrides the retention of the manifests for this processing. `duration` has the manifest format. |
+| `review` | object | no | **(v0.2.1)** The DPO's approval of this processing. See [Review](#review-v021). |
 | `source` | source | yes | Provenance of the file. |
 
 Every declared value carries a `source` (`kind: declared` in practice, with the person or document in `ref`), as in the manifests. Values without a `source` of their own (`controller`, `dpo`, `joint_controllers`, the DPO checks) take the file's `source`.
@@ -107,6 +111,27 @@ A processing file with `spec_version: "0.1"` in a v0.2 compliance repo has none 
 
 The full list of open items (identity, Art. 30, DPO checks, AI features, controllers outside the register) and the action that closes each one are in [`templates/register/README.md`](../templates/register/README.md#v02-the-compliance-dossier).
 
+### Review (v0.2.1)
+
+Reserved for the DPO's approval of the processing, distinct from the technical merge of the pull request that changes it: a maintainer may merge a processing file the DPO has not approved yet.
+
+```yaml
+review:
+  status: validated
+  by: Data protection office
+  date: 2026-11-10
+  pr: https://github.com/bistro-org/bistro-compliance/pull/4
+```
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `status` | `draft` \| `ready` \| `validated` | yes | `draft`: being written; `ready`: ready for the DPO; `validated`: approved by the DPO. |
+| `by` | string | no | Who reviewed: a person, a role or a team. |
+| `date` | date (`YYYY-MM-DD`) | no | When. |
+| `pr` | string | no | The pull request of the review: its URL, or `#<number>` in the compliance repo. |
+
+The dossier does not read `review` yet: a processing reads the same with or without it.
+
 ## services/&lt;repo&gt;/sync.yaml
 
 Written by the Action every time a repo sends its manifest after a merge.
@@ -132,6 +157,47 @@ Written by the Action every time a repo sends its manifest after a merge.
 ## declared/&lt;tool&gt;/manifest.yaml
 
 A manifest for something with no repo to scan: a hosted CRM, a payroll tool, a spreadsheet. It uses the manifest schema; `service.repo` is absent, every `source.kind` is `declared`, and there is no `linked_files` (so no lag). The tool is listed in `compliance.yaml` under `declared_tools` and referenced from a processing with `tool: <id>`.
+
+## actions.yaml (v0.2.1)
+
+Optional, at the root of the compliance repo, written by a human. It names who answers for each role of the dossier's actions (`organisation`, `dpo`, `developer`, see [Actions](../templates/register/README.md#actions)) and who closes which action. Its free texts follow the [language](compliance-yaml.md#language-v021) of the compliance repo.
+
+```yaml
+spec_version: "0.2"
+contacts:
+  - {id: data-protection-office, role: dpo, name: Data protection office, contact: dpo@bistro-booking.example, scope: [organisation]}
+  - {id: platform-team, role: developer, name: platform team, contact: platform@bistro-booking.example, scope: [bistro-api, bistro-web]}
+assignments:
+  - {action: legal-basis-detail, contact: data-protection-office, scope: marketing-emails, due: 2026-12-15}
+```
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `spec_version` | string | yes | `"0.2"`. |
+| `contacts` | list | yes | Who answers for a role. May be `[]`. |
+| `assignments` | list | no | Who closes which action. |
+
+`contacts[]`:
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `id` | id | yes | Unique in `contacts`; referenced by `assignments[].contact`. |
+| `role` | `organisation` \| `dpo` \| `developer` | yes | The role of the actions it answers for. |
+| `name` | string | yes | A person, a role or a team. |
+| `contact` | string | yes | How to reach them. |
+| `scope` | list of strings | no | The repo names of `compliance.yaml` it answers for, or `organisation`. Absent: everything. |
+
+`assignments[]`:
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `action` | enum | yes | An action id of the dossier ([Actions](../templates/register/README.md#actions)): `organisation-identity`, `organisation-dpo`, `organisation-representative`, `joint-controllers`, `personal-data`, `transfer-safeguards`, `processor-contracts`, `retention`, `security-measures`, `legal-basis-detail`, `dpia`, `information`, `sensitive-data`, `ai-classification`, `ai-obligations`, `controller-rationale`. |
+| `contact` | id | yes | A `contacts` id of this file. |
+| `scope` | string | no | A processing id, a repo name, or `organisation`. Absent: every open item of the action. |
+| `due` | date (`YYYY-MM-DD`) | no | When it should be closed. |
+| `note` | string | no | Free text. |
+
+`node scripts/validate.mjs actions.yaml` checks the schema, that contact ids are unique, and that every `assignments[].contact` resolves. The dossier does not read `actions.yaml` yet: the Actions section is the same with or without it.
 
 ## anchors.yaml
 

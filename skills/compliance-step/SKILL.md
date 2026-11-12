@@ -54,6 +54,7 @@ Files in this folder: [`triggers.md`](triggers.md) (what each trigger means), [`
 ## Rules
 
 - English output, even when the conversation is in another language, unless the repo's house rules say otherwise.
+- **Manifest free texts keep their language.** New free texts written to the manifest (descriptions, purposes, subjects, field names, `controller_rationale`, `privacy_by_design`, retention triggers) are in the language the manifest already uses: the dossier language of its compliance repo (`organisation.language`, `spec/compliance-yaml.md`), even when it is not English. Ids, enum values, code references and notice refs stay in English or as written. The issue section and the questions follow the rule above.
 - Questions are plain: no article numbers, no legal jargon in what you ask. The article names stay in `triggers.md`.
 - Never write personal data (real names, numbers, emails) into the issue or the manifest: the manifest describes categories of data, not values.
 - Do not change a schema, a spec file or an existing item's meaning to make an answer fit. If the format cannot express the answer, write a `TODO` and say so.

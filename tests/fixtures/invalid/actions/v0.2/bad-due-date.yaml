@@ -1,0 +1,6 @@
+# expect: /assignments/0/due format
+spec_version: "0.2"
+contacts:
+  - {id: data-protection-office, role: dpo, name: Data protection office, contact: dpo@bistro-booking.example}
+assignments:
+  - {action: dpia, contact: data-protection-office, due: next month}

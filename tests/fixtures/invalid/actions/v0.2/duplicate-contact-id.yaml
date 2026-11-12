@@ -1,0 +1,5 @@
+# expect: /contacts/1/id uniqueId
+spec_version: "0.2"
+contacts:
+  - {id: data-protection-office, role: dpo, name: Data protection office, contact: dpo@bistro-booking.example}
+  - {id: data-protection-office, role: organisation, name: Bistro Booking Group, contact: privacy@bistro-booking.example}

@@ -4,7 +4,7 @@
 
 `compliance.yaml` sits at the root of the compliance repo (see [compliance-repo.md](compliance-repo.md)). It states who the organisation is, and lists the repos and the external tools that make up its information system. It is written by a human.
 
-Its `spec_version` is the version of the whole compliance repo: `"0.2"` gives the v0.2 dossier, `"0.1"` the v0.1 register (see [compliance-repo.md](compliance-repo.md#versions)). Fields marked **(v0.2)** are new in v0.2 and rejected in a v0.1 file.
+Its `spec_version` is the version of the whole compliance repo: `"0.2"` gives the v0.2 dossier, `"0.1"` the v0.1 register (see [compliance-repo.md](compliance-repo.md#versions)). Fields marked **(v0.2)** are new in v0.2 and rejected in a v0.1 file; **(v0.2.1)** marks a field added in the v0.2.1 release, accepted with `spec_version: "0.2"` (see [stability.md](stability.md)).
 
 ```yaml
 spec_version: "0.2"
@@ -23,6 +23,7 @@ organisation:
   representative:
     required: unknown
   privacy_contact: privacy@bistro-booking.example
+  language: en
 
 repos:
   - name: bistro-api
@@ -51,6 +52,7 @@ declared_tools:
 | `organisation.dpo` | object | no | **(v0.2)** The data protection officer (Art. 37 to 39). See below. |
 | `organisation.representative` | object | no | **(v0.2)** The representative in the Union (Art. 27). See below. |
 | `organisation.privacy_contact` | string | no | **(v0.2)** Where persons exercise their rights: an email address or a URL. |
+| `organisation.language` | `en` \| `fr` | no | **(v0.2.1)** The language of the compliance repo. See [Language](#language-v021). |
 | `repos` | list | yes | The repos of the information system. May be `[]`. |
 | `declared_tools` | list | no | External tools with a hand-declared manifest. |
 
@@ -112,6 +114,19 @@ A gap is an open item of the dossier, never a validation error:
 - `organisation.representative` absent or `required: unknown`.
 
 The exact rules, and the actions that close them, are in [`templates/register/README.md`](../templates/register/README.md#v02-the-compliance-dossier).
+
+## Language (v0.2.1)
+
+A compliance repo has **one language**, `organisation.language`: `en` or `fr`. A text field holds one language, and the dossier never translates a value, so every text that reaches the dossier is written in that language:
+
+- the processing files: `name`, `purpose`, `data_subjects`, the texts of the DPO checks, `security_measures`, `recipients`, `retention.trigger`, `joint_controllers`;
+- the free texts of the manifests sent to the compliance repo, and of its declared tools: `service.description`, `controller_rationale` and `privacy_by_design`, `personal_data[].subjects`, `.purpose` and `fields[].name`, and the purposes, descriptions and reasons of the other lists (`retention.trigger`, flows, decisions, AI features).
+
+Ids, enum values and code references stay in English, or as written in the code: `id`s, `legal_basis`, `category`, `kind`, a `source.ref` of kind `code`, `linked_files`, and the `ref` of a notice (a URL, a file or a screen name) are never translated. Names of organisations, products and processors are written as they are.
+
+A code repo sends its manifest to one compliance repo, so its free texts are written in the language of that compliance repo. The skills follow this rule: compliance-init writes the first manifest in it, and compliance-step keeps the language the manifest already uses.
+
+The register uses `organisation.language` when the generator is given no language ([Inputs](../templates/register/README.md#inputs-1)). Absent, the language is `en`.
 
 ## Missing services
 

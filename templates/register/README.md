@@ -224,7 +224,7 @@ The dossier a DPO reviews: the organisation's identity, the actions that close t
 ### Inputs
 
 - `generated_at`: an RFC 3339 date-time, given by the caller, as in v0.1. The generator never reads the clock.
-- `language`: `en` (default) or `fr`, given by the caller. It picks the template ([`register.en.md.tmpl`](register.en.md.tmpl) or [`register.fr.md.tmpl`](register.fr.md.tmpl)) and the fixed strings of [Translations](#translations). The output path is `documents/register.md` in both languages.
+- `language`: `en` (default) or `fr`, given by the caller. It picks the template ([`register.en.md.tmpl`](register.en.md.tmpl) or [`register.fr.md.tmpl`](register.fr.md.tmpl)) and the fixed strings of [Translations](#translations). The output path is `documents/register.md` in both languages. The language is the generator's input if given, else `organisation.language` of `compliance.yaml` (v0.2.1), else `en`.
 - The compliance repo: `compliance.yaml` (v0.2), `processings/*/processing.yaml`, `services/<repo>/manifest.yaml` and `sync.yaml`, `declared/<tool>/manifest.yaml`. Processing files and manifests may be v0.1 or v0.2: a field that a v0.1 file cannot hold is read as absent.
 
 ### Files read, and failures
@@ -233,6 +233,7 @@ The dossier a DPO reviews: the organisation's identity, the actions that close t
 - **Referenced manifests**: the manifests of the entries of `services` of every processing, resolved as in v0.1 ([Scope of a processing](#scope-of-a-processing)). The scope rules of v0.1 apply, with one addition: a processor named by the `processor` of an in-scope outbound flow is in scope (see [Recipients](#recipients-d-v02)).
 - **All manifests**: for [Outside the register](#outside-the-register), every repo of `compliance.yaml` `repos` that has a `services/<repo>/` folder, and every `declared_tools` entry.
 - **Notices**: each entry of `information.notices` resolves to the `notices` item with that `id` in the manifest of its `repo` (a repo of `compliance.yaml`) or `tool` (a `declared_tools` id).
+- **Not read yet**: `actions.yaml` and the `review` of a processing file (v0.2.1, reserved; see [compliance-repo.md](../../spec/compliance-repo.md)). They change nothing in the dossier.
 
 The generation **fails** (the generator reports it and writes nothing) in the v0.1 cases, and also when: a repo with a `services/<repo>/` folder has no `manifest.yaml` or no `sync.yaml`; a declared tool's manifest file is missing; a notice reference does not resolve (unknown repo or tool, missing manifest, or no notice with that id). A dossier that silently drops a service or a notice would look complete.
 

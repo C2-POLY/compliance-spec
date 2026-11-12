@@ -6,8 +6,8 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } fro
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parse } from 'yaml';
-import { SCHEMAS, VERSIONS, schemaFor, validateFile, versionOf } from '../scripts/validate.mjs';
+import { parse, stringify } from 'yaml';
+import { SCHEMAS, VERSIONS, hasSchema, schemaFor, validateFile, versionOf } from '../scripts/validate.mjs';
 import { orphans } from '../scripts/check-triggers.mjs';
 
 const root = join(fileURLToPath(import.meta.url), '..', '..');
@@ -42,9 +42,9 @@ for (const schema of SCHEMAS) {
 
 const versionOfFile = (file) => versionOf(parse(readFileSync(file, 'utf8')));
 
-test('every schema has at least one valid and one invalid fixture in each version', () => {
+test('every schema has at least one valid and one invalid fixture in each version that has it', () => {
   for (const schema of SCHEMAS) {
-    for (const version of VERSIONS) {
+    for (const version of VERSIONS.filter((v) => hasSchema(v, schema))) {
       assert.ok(yamlFiles(join(fixtures, 'valid', schema)).some((f) => versionOfFile(f) === version), `no valid ${version} fixture for ${schema}`);
       assert.ok(yamlFiles(join(fixtures, 'invalid', schema)).some((f) => versionOfFile(f) === version), `no invalid ${version} fixture for ${schema}`);
     }
@@ -78,11 +78,15 @@ test('the v0.1 example keeps every file, including its register and anchors', ()
   }
 });
 
-test('schema $id matches the published URL, for each version', () => {
+// The release whose tag each schema folder's $id names: v0.1 is frozen at v0.1.0; v0.2 grows by additive patch releases.
+const releases = { '0.1': '0.1.0', '0.2': '0.2.1' };
+
+test('schema $id matches the published URL of its release, for each version', () => {
+  assert.deepEqual(Object.keys(releases), VERSIONS);
   for (const version of VERSIONS) {
-    for (const name of SCHEMAS) {
+    for (const name of SCHEMAS.filter((s) => hasSchema(version, s))) {
       const schema = JSON.parse(readFileSync(join(root, 'schema', `v${version}`, `${name}.schema.json`), 'utf8'));
-      assert.equal(schema.$id, `https://raw.githubusercontent.com/C2-POLY/compliance-spec/v${version}.0/schema/v${version}/${name}.schema.json`);
+      assert.equal(schema.$id, `https://raw.githubusercontent.com/C2-POLY/compliance-spec/v${releases[version]}/schema/v${version}/${name}.schema.json`);
       assert.equal(schema.$schema, 'https://json-schema.org/draft/2020-12/schema');
       assert.deepEqual(schema.properties.spec_version, { const: version });
     }
@@ -448,6 +452,71 @@ test('register v0.2: the rules list the 16 actions of the design with their role
   assert.match(registerReadme, /\n## v0\.1: the records of processing\n/);
 });
 
+// v0.2.1: one language per dossier, the reserved review, action owners, and the additive-only rule
+const v02Actions = readYaml(v02Dir, 'actions.yaml');
+
+test('v0.2.1: actions.yaml takes exactly the action ids of the dossier, and only in v0.2', () => {
+  const schema = JSON.parse(readFileSync(join(root, 'schema', 'v0.2', 'actions.schema.json'), 'utf8'));
+  assert.deepEqual(schema.$defs.action.enum, Object.keys(designActions));
+  assert.deepEqual(schema.properties.contacts.items.properties.role.enum, roleOrder);
+  assert.ok(!existsSync(join(root, 'schema', 'v0.1', 'actions.schema.json')), 'v0.1 is frozen');
+  assert.equal(schemaFor('examples/bistro-booking/actions.yaml'), 'actions');
+});
+
+test('v0.2.1 example: language en, one review, and an actions.yaml whose contacts and scopes resolve', () => {
+  assert.equal(v02Compliance.organisation.language, 'en');
+  const reviewed = v02Processings.filter((p) => p.review);
+  assert.deepEqual(reviewed.map((p) => [p.id, p.review.status]), [['table-bookings', 'validated']]);
+  assert.ok(reviewed[0].review.by && reviewed[0].review.date && reviewed[0].review.pr);
+  assert.equal(v02Actions.contacts.length, 2);
+  assert.equal(v02Actions.assignments.length, 2);
+  const repos = v02Compliance.repos.map((r) => r.name);
+  for (const c of v02Actions.contacts) for (const s of c.scope ?? []) assert.ok(s === 'organisation' || repos.includes(s), `${c.id}: ${s}`);
+  const contacts = new Map(v02Actions.contacts.map((c) => [c.id, c]));
+  for (const a of v02Actions.assignments) {
+    assert.ok(contacts.has(a.contact), a.contact);
+    assert.equal(contacts.get(a.contact).role, designActions[a.action], `${a.action}: the contact answers for its role`);
+    assert.ok([undefined, 'organisation', ...repos, ...v02Processings.map((p) => p.id)].includes(a.scope), `${a.action}: ${a.scope}`);
+  }
+});
+
+test('v0.2.1 stability: the v0.2.0 example files, without the v0.2.1 additions, still validate', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'compliance-v020-'));
+  let checked = 0;
+  for (const file of yamlFiles(v02Dir)) {
+    const schema = schemaFor(rel(file));
+    if (schema === 'actions') continue;
+    const doc = parse(readFileSync(file, 'utf8'));
+    if (schema === 'compliance') delete doc.organisation.language;
+    if (schema === 'processing') delete doc.review;
+    const copy = join(dir, `${checked}.yaml`);
+    writeFileSync(copy, stringify(doc));
+    assert.deepEqual(validateFile(copy, schema), [], rel(file));
+    checked += 1;
+  }
+  assert.equal(checked, yamlFiles(v02Dir).length - 1);
+});
+
+test('v0.2.1: the register uses organisation.language when the generator gets no language', () => {
+  const inputs = v02Rules.split('\n### Inputs\n')[1].split('\n### ')[0];
+  assert.match(inputs, /`organisation\.language`/);
+  assert.match(inputs, /else `en`/);
+  assert.match(readFileSync(join(root, 'spec', 'compliance-yaml.md'), 'utf8'), /\| `organisation\.language` \| `en` \\\| `fr` \| no \|/);
+  const repoSpec = readFileSync(join(root, 'spec', 'compliance-repo.md'), 'utf8');
+  assert.match(repoSpec, /^actions\.yaml +/m);
+  assert.match(repoSpec, /\| `actions\.yaml` \| a human \| `actions\.schema\.json` \|/);
+  assert.match(repoSpec, /\| `review` \| object \| no \|/);
+});
+
+test('v0.2.1 stability: spec/stability.md states the rule and is linked from the README, spec/README.md and CLAUDE.md', () => {
+  const stability = readFileSync(join(root, 'spec', 'stability.md'), 'utf8');
+  for (const rule of [/renames/, /removes/, /meaning/, /makes an optional field required/, /tightens an enum/, /stays valid/, /v1\.0/, /`spec_version`/]) assert.match(stability, rule);
+  assert.match(readFileSync(join(root, 'README.md'), 'utf8'), /\]\(spec\/stability\.md\)/);
+  assert.match(readFileSync(join(root, 'spec', 'README.md'), 'utf8'), /\]\(stability\.md\)/);
+  assert.match(readFileSync(join(root, '.claude', 'CLAUDE.md'), 'utf8'), /## Stability[\s\S]*spec\/stability\.md/);
+});
+
+
 // The golden files are generated by compliance-action and copied in; until they are, these tests are not defined.
 const goldens = [['en', join(v02Dir, 'documents', 'register.md')], ['fr', join(v02Dir, 'documents', 'register.fr.md')]];
 const cellsOf = (line) => line.split(/(?<!\\)\|/).slice(1, -1).map((c) => c.trim());
@@ -760,7 +829,7 @@ test('compliance-init: COMPLIANCE.md holds a valid v0.2 compliance.yaml with the
   assert.deepEqual(validateText('compliance.yaml', entry[0].body, 'compliance'), []);
   const compliance = parse(entry[0].body);
   assert.equal(compliance.spec_version, '0.2');
-  assert.deepEqual(Object.keys(compliance.organisation), ['name', 'controller', 'dpo', 'representative', 'privacy_contact']);
+  assert.deepEqual(Object.keys(compliance.organisation), ['name', 'language', 'controller', 'dpo', 'representative', 'privacy_contact']);
   const repos = compliance.repos;
   assert.ok(Array.isArray(repos) && repos.length === 1);
   assert.equal(repos[0].name, expectedManifest.service.repo.split('/')[1]);
@@ -946,4 +1015,12 @@ test('compliance-init: a dir/** link covers at least half of the files of its fo
     const found = inFolder.filter((f) => allFindingFiles.has(f));
     assert.ok(found.length * 2 >= inFolder.length, `${g}: ${found.length} of ${inFolder.length}`);
   }
+});
+
+test('v0.2.1 skills: compliance-init asks the dossier language with the compliance repo; compliance-step keeps it', () => {
+  const init = initText('SKILL.md');
+  assert.match(init, /dossier language/);
+  assert.match(init, /`organisation\.language`/);
+  assert.match(initText('compliance-handoff.md'), /^  language: <en or fr>$/m);
+  assert.match(readFileSync(join(stepDir, 'SKILL.md'), 'utf8'), /language the manifest already uses/);
 });

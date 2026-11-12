@@ -10,6 +10,7 @@ The identity of the organisation, to fill once for the whole compliance repo, an
 spec_version: "0.2"
 organisation:
   name: Bistro Booking Group
+  language: en
   controller:
     legal_name: to complete
     address: to complete

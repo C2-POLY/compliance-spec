@@ -16,3 +16,8 @@ The open format (spec, JSON Schemas), the compliance step for `/topic`, the regi
 
 - Schemas are JSON Schema draft 2020-12, versioned by folder (`schema/v0.1/`). A breaking change gets a new folder, never an edit of a published one.
 - Every example and fixture is validated in CI.
+
+## Stability
+
+- From v0.2, every change to the format is additive only ([`spec/stability.md`](../spec/stability.md)): optional fields, sections, files and action ids. Never rename, remove or change the meaning or type of anything, make an optional field required, or tighten an enum. Every valid file stays valid.
+- Additions to v0.2 are patch releases (v0.2.x): edit `schema/v0.2/` in place and move every `$id` there to the new tag. A structural change waits for v1.0 and is announced as such.
